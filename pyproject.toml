@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cda"
+version = "13.3.0"
+description = "Cognitive Decision Architecture"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi",
+    "pydantic",
+    "pytest",
+    "httpx",
+    "tenacity",
+    "opa-python",
+    "paseto",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["cda/tests"]
+pythonpath = ["."]
+
