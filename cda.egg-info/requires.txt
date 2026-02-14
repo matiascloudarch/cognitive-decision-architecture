@@ -1,7 +1,0 @@
-fastapi
-pydantic
-pytest
-httpx
-tenacity
-opa-python
-paseto
