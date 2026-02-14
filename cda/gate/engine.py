@@ -17,7 +17,7 @@ class ExecutedIntent(Base):
     id = Column(String, primary_key=True, index=True)
     entity_id = Column(String)
     action = Column(String)
-    executed_at = Column(DateTime, default=datetime.now(timezone.utc))
+    executed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 Base.metadata.create_all(bind=engine)
 
@@ -28,24 +28,25 @@ _DEV_KEY = Key.new(version=4, purpose="local", key=b"a-very-secret-key-32-chars-
 @app.post("/execute")
 def execute_token(token: str):
     try:
-        # Verify Token
+        # Verify Token Authenticity
         decoded = Paseto.new().decode(_DEV_KEY, token)
         manifest = json.loads(decoded.payload)
         
         db = SessionLocal()
-        # Replay Protection
+        
+        # Replay Protection: Check if this intent ID was already processed
         exists = db.query(ExecutedIntent).filter(ExecutedIntent.id == manifest["intent_id"]).first()
         if exists:
             db.close()
             raise HTTPException(status_code=400, detail="Replay Attack Detected: Intent already executed")
 
-        # Temporal Integrity
+        # Temporal Integrity: Check if token has expired based on TTL
         created_at = datetime.fromisoformat(manifest["created_at"])
         if (datetime.now(timezone.utc) - created_at).total_seconds() > manifest["ttl"]:
             db.close()
             raise HTTPException(status_code=400, detail="Token Expired")
 
-        # Record Execution
+        # Record Execution in Database
         new_exec = ExecutedIntent(
             id=manifest["intent_id"],
             entity_id=manifest["entity_id"],
@@ -55,14 +56,18 @@ def execute_token(token: str):
         db.commit()
         db.close()
 
-        return {"status": "success", "action": manifest["action"], "intent_id": manifest["intent_id"]}
+        return {
+            "status": "success", 
+            "action": manifest["action"], 
+            "intent_id": manifest["intent_id"]
+        }
 
     except Exception as e:
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=401, detail=f"Invalid Token: {str(e)}")
 
-# Compatibility class for old tests (optional)
 class GateExecutor:
+    """Compatibility class for testing purposes."""
     def verify_token(self, token):
         decoded = Paseto.new().decode(_DEV_KEY, token)
         return json.loads(decoded.payload)
