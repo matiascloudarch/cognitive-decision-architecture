@@ -1,78 +1,34 @@
-# Cognitive Decision Architecture (CDA)
+# Cognitive Decision Architecture (CDA) v13.3
 
-Reference architecture for governing autonomous agents through a strict
-decision–execution split enforced by cryptographic authority.
+Reference architecture for governing autonomous agents through a strict **decision–execution split** enforced by cryptographic authority.
 
-CDA prevents runaway or unsafe agent behavior by ensuring that the component
-that decides an action cannot execute it, and the component that executes an
-action cannot decide it.
+## Core Philosophy
+CDA prevents runaway agent behavior by ensuring that the component that **decides** an action cannot **execute** it, and the component that **executes** an action cannot **decide** it. 
 
----
+### Key Invariants
+1. **The Kernel never executes** side effects.
+2. **The Gate never reasons** about authorization.
+3. **No shared memory**: Communication is strictly via signed Authority Tokens.
 
-## Core Idea
 
-Actions are only executed if accompanied by a cryptographically signed
-Authority Token issued by the Decision Kernel.
 
-The Kernel evaluates intent and context.
-The Gate verifies the token and executes the side effect.
-They share no memory and no implicit trust.
+## 🛡️ Threat Model & Security Guarantees
 
----
-
-## Architecture Overview
-
-1. An Agent proposes an Intent (untrusted).
-2. The Kernel evaluates the Intent against a trusted ContextSnapshot and policy.
-3. If allowed, the Kernel signs an Authority Token (PASETO v4.public).
-4. The Gate verifies the token and enforces runtime safety checks.
-5. Only then is the side effect executed.
-
----
-
-## Key Invariants
-
-- The Kernel never executes side effects.
-- The Gate never makes authorization decisions.
-- Every action requires a valid, signed Authority Token.
-- Entity isolation is enforced end to end.
-
----
-
-## Security Properties
-
-- Cryptographic authorization using PASETO v4.public (Ed25519).
-- Policy-as-code with explicit allow/deny rules.
-- Time-bound authorization (TTL).
-- Replay protection via intent idempotency.
-- Optimistic concurrency control (OCC).
-
----
+| Threat | CDA Defense |
+| :--- | :--- |
+| **Semantic Drift** | Intent hashing and context locking at the Kernel layer. |
+| **Replay Attacks** | Mandatory Idempotency check at the Gate layer. |
+| **Hallucinated State** | Kernel only accepts signed ContextSnapshots from trusted providers. |
+| **Runaway Execution** | Physical separation of keys. The Agent has no execution authority. |
+| **Stale Authorization** | Strict TTL enforced by infrastructure clocks, not by the Agent. |
 
 ## Project Structure
+- `cda/kernel/`: Stateless logic, policy enforcement, and token signing.
+- `cda/gate/`: Token verification, OCC checks, and execution runtime.
+- `cda/shared/`: Immutable data models (Intent, ContextSnapshot).
 
-```text
-cda/
-├── kernel/           # Decision logic, policy enforcement, token signing
-├── gate/             # Token verification and execution runtime
-├── shared/           # Immutable data models (Intent, ContextSnapshot)
-├── context_provider/ # Interface for trusted state sources
-```text
+## Security Notice
+This repository is a reference implementation. Development keys are embedded for demonstration. Production deployments **must** load keys from a secure KMS/HSM.
 
-Security Notice
-
-This repository is a reference implementation.
-
-All cryptographic keys included in the codebase are development-only and
-intentionally embedded for demonstration purposes.
-
-Production deployments must load keys from a secure KMS or HSM and must not
-embed private keys in source code.
-
-Status
-
-Implemented and validated reference architecture.
-Not intended for direct production use.
-
-License
+## License
 Apache License 2.0

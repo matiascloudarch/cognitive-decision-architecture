@@ -1,73 +1,33 @@
 import json
 from typing import Dict, Any
-
 from fastapi import HTTPException
 from pyseto import Key, Paseto
-
 from cda.shared.models import Intent, ContextSnapshot
 
-
-# ------------------------------------------------------------------
-# Key material (DEVELOPMENT / DEMO ONLY)
-#
-# These keys are intentionally embedded for reference purposes.
-# They MUST NOT be used in production.
-# In real deployments, keys are loaded from a secure KMS or HSM.
-# ------------------------------------------------------------------
-
+# DEVELOPMENT KEYS - DO NOT USE IN PRODUCTION
+# In production, load from a secure KMS/HSM environment variable.
 _DEV_PRIVATE_KEY_PEM = b"""-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEIMbiv7oa/TNtdDa0plGZ/msTc0oiKcx1feB3mhe5JP8Q
 -----END PRIVATE KEY-----"""
 
-_PRIVATE_KEY = Key.new(
+# PASETO v4.public uses asymmetric cryptography (Ed25519).
+# Purpose "public" refers to the protocol version, using the private key to sign.
+_SIGNING_KEY = Key.new(
     version=4,
-    purpose="public",
+    purpose="public", 
     key=_DEV_PRIVATE_KEY_PEM,
 )
 
-
-# ------------------------------------------------------------------
-# Policy evaluation (mirrors policy.rego)
-# ------------------------------------------------------------------
-
-def _evaluate_policy(intent: Intent, context: ContextSnapshot) -> None:
-    """
-    Enforces authorization rules.
-    Raises HTTPException on denial.
-    """
-
-    if intent.action != "execute_trade":
-        raise HTTPException(status_code=403, detail="Action not allowed")
-
-    amount = intent.params.get("amount")
-    if not isinstance(amount, (int, float)):
-        raise HTTPException(status_code=403, detail="Invalid amount")
-
-    balance = context.state.get("balance")
-    if balance is None:
-        raise HTTPException(status_code=403, detail="Balance not available")
-
-    if amount > balance:
-        raise HTTPException(status_code=403, detail="Insufficient balance")
-
-
-# ------------------------------------------------------------------
-# Kernel entrypoint
-# ------------------------------------------------------------------
-
 def authorize(intent: Intent, context: ContextSnapshot) -> Dict[str, Any]:
     """
-    Authorizes an intent against a trusted context snapshot.
-    Returns a signed authority token.
+    Stateless Authority: Evaluates intent against trusted context and signs the decision.
     """
-
     if intent.entity_id != context.entity_id:
-        raise HTTPException(
-            status_code=403,
-            detail="Entity mismatch between intent and context",
-        )
+        raise HTTPException(status_code=403, detail="Security Breach: Entity mismatch")
 
-    _evaluate_policy(intent, context)
+    # Policy enforcement (In production, call OPA/Rego engine here)
+    if intent.params.get("amount", 0) > context.state.get("balance", 0):
+        raise HTTPException(status_code=403, detail="Policy Violation: Insufficient balance")
 
     manifest = {
         "intent_id": str(intent.id),
@@ -77,17 +37,18 @@ def authorize(intent: Intent, context: ContextSnapshot) -> Dict[str, Any]:
         "created_at": intent.created_at.isoformat(),
         "ttl": intent.ttl,
         "decision": "allow",
-        "context_id": str(context.id),
-        "entity_version": context.state.get("version"),
+        "entity_version": context.state.get("version"), # OCC lock
     }
 
+    # Generate the Authority Token
     token = Paseto.new(exp=manifest["ttl"]).encode(
-        _PRIVATE_KEY,
+        _SIGNING_KEY,
         json.dumps(manifest).encode(),
-        b"cda-v13.3",
+        footer=b"cda-v13.3",
     )
 
     return {
         "token": token.decode(),
         "decision": "allow",
+        "manifest_summary": manifest
     }
