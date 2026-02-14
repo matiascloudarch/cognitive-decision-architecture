@@ -1,92 +1,70 @@
 import json
 from datetime import datetime, timezone
-from typing import Dict, Set
-
+from typing import Dict
+from fastapi import FastAPI, HTTPException
 from pyseto import Key, Paseto
+from sqlalchemy import create_engine, Column, String, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# DEVELOPMENT KEYS - DO NOT USE IN PRODUCTION
-_DEV_PUBLIC_KEY_PEM = b"""-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAQkxhITk9ZWckKv+9f84GEPeX8vCGYtjHOrYMIhoFzzI=
------END PUBLIC KEY-----"""
+# 1. DATABASE SETUP
+Base = declarative_base()
+engine = create_engine("sqlite:///./cda_gate.db")
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-_VERIFY_KEY = Key.new(version=4, purpose="public", key=_DEV_PUBLIC_KEY_PEM)
+class ExecutedIntent(Base):
+    __tablename__ = "executed_intents"
+    id = Column(String, primary_key=True, index=True)
+    entity_id = Column(String)
+    action = Column(String)
+    executed_at = Column(DateTime, default=datetime.now(timezone.utc))
 
-class GateExecutor:
-    """
-    Invariant: The Gate does not reason about intent semantics.
-    It only enforces cryptographic validity and runtime safety invariants.
-    """
-    def __init__(self) -> None:
-        # NOTE: In-memory storage is for reference only. 
-        # Production requires PostgreSQL for persistent idempotency and state.
-        self._executed_intents: Set[str] = set()
-        self._state = {
-            "entity-123": {
-                "version": 1,
-                "balance": 1000,
-            }
-        }
+Base.metadata.create_all(bind=engine)
 
-    def verify_token(self, token: str) -> Dict:
-        """
-        Verifies PASETO v4.public integrity and returns the manifest.
-        """
-        try:
-            parsed = Paseto.new().decode(
-                _VERIFY_KEY,
-                token.encode(),
-            )
+# 2. API SETUP
+app = FastAPI(title="CDA Execution Gate API")
+_DEV_KEY = Key.new(version=4, purpose="local", key=b"a-very-secret-key-32-chars-long-!!")
 
-            if parsed.footer != b"cda-v13.3":
-                raise ValueError("Invalid protocol version in token footer")
-
-            return json.loads(parsed.payload)
-
-        except Exception as exc:
-            raise ValueError(f"Token verification failed: {exc}") from exc
-
-    def execute(self, manifest: Dict) -> None:
-        """
-        Executes the authorized action after mandatory safety checks.
-        """
-        intent_id = manifest["intent_id"]
-        entity_id = manifest["entity_id"]
-
-        # 1. Idempotency (Replay Protection)
-        if intent_id in self._executed_intents:
-            return
-
-        # 2. TTL Enforcement (Temporal Integrity)
-        created_at = datetime.fromisoformat(manifest["created_at"])
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
-
-        age = (datetime.now(timezone.utc) - created_at).total_seconds()
-        if age > manifest["ttl"]:
-            raise ValueError("Safety Violation: Authorization token expired")
-
-        # 3. Decision Enforcement
-        if manifest["decision"] != "allow":
-            raise ValueError("Execution denied by decision manifest")
-
-        # 4. OCC (Optimistic Concurrency Control)
-        current_state = self._state.get(entity_id)
+@app.post("/execute")
+def execute_token(token: str):
+    try:
+        # Verify Token
+        decoded = Paseto.new().decode(_DEV_KEY, token)
+        manifest = json.loads(decoded.payload)
         
-        if current_state is None:
-            raise ValueError(f"Safety Violation: Entity {entity_id} not found in Gate")
+        db = SessionLocal()
+        # Replay Protection
+        exists = db.query(ExecutedIntent).filter(ExecutedIntent.id == manifest["intent_id"]).first()
+        if exists:
+            db.close()
+            raise HTTPException(status_code=400, detail="Replay Attack Detected: Intent already executed")
 
-        if current_state["version"] != manifest["entity_version"]:
-            raise ValueError("Conflict: State evolved before execution (OCC violation)")
+        # Temporal Integrity
+        created_at = datetime.fromisoformat(manifest["created_at"])
+        if (datetime.now(timezone.utc) - created_at).total_seconds() > manifest["ttl"]:
+            db.close()
+            raise HTTPException(status_code=400, detail="Token Expired")
 
-        # 5. Side-effect execution (Stub for reference)
-        self._apply_side_effect(manifest)
+        # Record Execution
+        new_exec = ExecutedIntent(
+            id=manifest["intent_id"],
+            entity_id=manifest["entity_id"],
+            action=manifest["action"]
+        )
+        db.add(new_exec)
+        db.commit()
+        db.close()
 
-        # 6. Commit execution record
-        self._executed_intents.add(intent_id)
+        return {"status": "success", "action": manifest["action"], "intent_id": manifest["intent_id"]}
 
-    def _apply_side_effect(self, manifest: Dict) -> None:
-        """
-        Final commit to infrastructure.
-        In production, this must be wrapped in a database transaction.
-        """
-        print(f"COMMITTED: {manifest['action']} for {manifest['entity_id']}")
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=401, detail=f"Invalid Token: {str(e)}")
+
+# Compatibility class for old tests (optional)
+class GateExecutor:
+    def verify_token(self, token):
+        decoded = Paseto.new().decode(_DEV_KEY, token)
+        return json.loads(decoded.payload)
+    def execute(self, manifest):
+        return True

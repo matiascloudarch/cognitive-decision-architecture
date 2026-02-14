@@ -1,54 +1,63 @@
 import json
-from typing import Dict, Any
-from fastapi import HTTPException
+from datetime import datetime, timezone
+from typing import Dict
+from fastapi import FastAPI, HTTPException
 from pyseto import Key, Paseto
+
 from cda.shared.models import Intent, ContextSnapshot
 
-# DEVELOPMENT KEYS - DO NOT USE IN PRODUCTION
-# In production, load from a secure KMS/HSM environment variable.
-_DEV_PRIVATE_KEY_PEM = b"""-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIMbiv7oa/TNtdDa0plGZ/msTc0oiKcx1feB3mhe5JP8Q
------END PRIVATE KEY-----"""
+app = FastAPI(title="CDA Decision Kernel API")
 
-# PASETO v4.public uses asymmetric cryptography (Ed25519).
-# Purpose "public" refers to the protocol version, using the private key to sign.
-_SIGNING_KEY = Key.new(
-    version=4,
-    purpose="public", 
-    key=_DEV_PRIVATE_KEY_PEM,
-)
+# Use a static 32-byte key for development consistency
+_DEV_KEY = Key.new(version=4, purpose="local", key=b"a-very-secret-key-32-chars-long-!!")
 
-def authorize(intent: Intent, context: ContextSnapshot) -> Dict[str, Any]:
+def authorize(intent: Intent, context: ContextSnapshot) -> Dict:
     """
-    Stateless Authority: Evaluates intent against trusted context and signs the decision.
+    Core authorization logic used by both the API and internal tests.
     """
     if intent.entity_id != context.entity_id:
-        raise HTTPException(status_code=403, detail="Security Breach: Entity mismatch")
+        raise ValueError("Security Violation: Entity mismatch")
 
-    # Policy enforcement (In production, call OPA/Rego engine here)
-    if intent.params.get("amount", 0) > context.state.get("balance", 0):
-        raise HTTPException(status_code=403, detail="Policy Violation: Insufficient balance")
+    balance = context.state.get("balance", 0)
+    amount_requested = intent.params.get("amount", 0)
+
+    if balance < amount_requested:
+        raise ValueError("Insufficient balance")
 
     manifest = {
         "intent_id": str(intent.id),
         "entity_id": intent.entity_id,
+        "entity_version": context.state.get("version", 0),
         "action": intent.action,
-        "params": intent.params,
-        "created_at": intent.created_at.isoformat(),
-        "ttl": intent.ttl,
         "decision": "allow",
-        "entity_version": context.state.get("version"), # OCC lock
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ttl": intent.ttl
     }
 
-    # Generate the Authority Token
-    token = Paseto.new(exp=manifest["ttl"]).encode(
-        _SIGNING_KEY,
-        json.dumps(manifest).encode(),
-        footer=b"cda-v13.3",
+    token = Paseto.new().encode(
+        _DEV_KEY,
+        payload=json.dumps(manifest).encode(),
+        footer=b"cda-v13.3"
     )
 
     return {
-        "token": token.decode(),
         "decision": "allow",
-        "manifest_summary": manifest
+        "token": token.decode(),
+        "manifest_preview": manifest
     }
+
+@app.get("/health")
+def health_check():
+    return {"status": "operational", "service": "kernel"}
+
+@app.post("/authorize")
+def authorize_endpoint(intent: Intent, context: ContextSnapshot) -> Dict:
+    """
+    HTTP Wrapper for the authorize logic.
+    """
+    try:
+        return authorize(intent, context)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
