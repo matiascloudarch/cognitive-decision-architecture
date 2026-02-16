@@ -1,69 +1,69 @@
-# cda/gate/engine.py
-
 import os
-from typing import Any, Dict, Optional
-from datetime import datetime, timedelta, timezone
+import sqlite3
+from typing import Dict, Any
+from fastapi import FastAPI, HTTPException, status, Query
+from pyseto import Key, Paseto
+from dotenv import load_dotenv
 
-# Flexible imports to handle different pyseto versions
-try:
-    from pyseto import Paseto, PasetoMessage, Token
-except ImportError:
-    # Fallback for newer or different versions
-    from pyseto import Paseto, Token
-    PasetoMessage = Any 
+load_dotenv()
 
-class PasetoEngine:
-    """
-    PASETO (Platform-Agnostic Security Tokens) Engine for secure communication.
-    Uses V4.Public for asymmetric signing.
-    """
+# --- SECURITY VALIDATION ---
+# The Gate ONLY needs the Public Key to verify the Kernel's signature.
+PUBLIC_KEY_RAW = os.getenv("PASETO_PUBLIC_KEY")
+if not PUBLIC_KEY_RAW:
+    raise RuntimeError("CRITICAL: PASETO_PUBLIC_KEY is not defined in environment.")
 
-    def __init__(self):
-        # In a real app, load these from secure env vars or KMS
-        self.private_key_pem = os.getenv("PASETO_PRIVATE_KEY", "")
-        self.public_key_pem = os.getenv("PASETO_PUBLIC_KEY", "")
-        self.version = "v4"
-        self.purpose = "public"
+GATE_VERIFICATION_KEY = Key.new(version=4, purpose="public", key=PUBLIC_KEY_RAW.encode())
 
-    def generate_token(self, payload: Dict[str, Any], expires_in_minutes: int = 60) -> str:
-        """
-        Generates a signed PASETO token.
-        """
-        if not self.private_key_pem:
-            raise ValueError("Private key is not configured")
+app = FastAPI(title="CDA Execution Gate - Production Ready")
+DB_PATH = "cda_gate.db"
 
-        # Set expiration
-        expiration = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
-        payload["exp"] = expiration.isoformat()
-        
-        # Create token
-        token = Paseto.encode(
-            key=self.private_key_pem,
-            payload=payload,
-            footer={"version": "1.0"},
-            exp=expires_in_minutes * 60 # some versions use seconds
+def init_db():
+    """Initializes the SQLite database for Replay Attack prevention."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS executed_intents (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT,
+            action TEXT,
+            executed_at TIMESTAMP
         )
+    """)
+    conn.close()
+
+init_db()
+
+@app.post("/execute", status_code=status.HTTP_201_CREATED)
+async def execute_action(token: str = Query(...)):
+    """
+    Verifies the PASETO token signature and prevents Replay Attacks.
+    """
+    try:
+        # 1. Cryptographic Verification (V4.Public)
+        # Replaces the old symmetric 'local' check.
+        decoded = Paseto.decode(GATE_VERIFICATION_KEY, token) [cite: 221, 224]
+        payload = json.loads(decoded.payload)
         
-        return token.decode("utf-8") if isinstance(token, bytes) else token
-
-    def verify_token(self, token: str) -> Dict[str, Any]:
-        """
-        Verifies and decodes a PASETO token.
-        """
-        if not self.public_key_pem:
-            raise ValueError("Public key is not configured")
-
-        try:
-            decoded = Paseto.decode(
-                token,
-                keys=self.public_key_pem
-            )
-            # Handle different return types from pyseto versions
-            if hasattr(decoded, "payload"):
-                return decoded.payload
-            return decoded
-        except Exception as e:
-            raise ValueError(f"Invalid or expired token: {str(e)}")
-
-# Global instance
-paseto_engine = PasetoEngine()
+        intent_id = payload["intent_id"]
+        
+        # 2. Idempotency Check (Replay Attack Prevention)
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM executed_intents WHERE id = ?", (intent_id,))
+        
+        if cursor.fetchone():
+            conn.close()
+            raise HTTPException(status_code=409, detail="Replay Attack Detected: Intent already executed.") [cite: 36]
+            
+        # 3. Log execution
+        cursor.execute(
+            "INSERT INTO executed_intents (id, entity_id, action, executed_at) VALUES (?, ?, ?, ?)",
+            (intent_id, payload["entity_id"], payload["action"], datetime.now(timezone.utc))
+        )
+        conn.commit()
+        conn.close()
+        
+        return {"status": "executed", "intent_id": intent_id}
+        
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Signature: {str(e)}") [cite: 230]

@@ -1,24 +1,40 @@
+version: '3.8'
+
 services:
+  # --- DECISION AUTHORITY (KERNEL) ---
   kernel:
     build: .
     container_name: cda-kernel
+    restart: always
     ports:
       - "8000:8000"
-    environment:
-      - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
+    env_file:
+      - .env
+    networks:
+      - cda-network
+    # Production-ready uvicorn command
     command: uvicorn cda.kernel.engine:app --host 0.0.0.0 --port 8000
 
+  # --- EXECUTION ENFORCEMENT (GATE) ---
   gate:
     build: .
     container_name: cda-gate
+    restart: always
     ports:
       - "8001:8001"
     volumes:
       - ./cda_gate.db:/app/cda_gate.db
-    environment:
-      - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
+    env_file:
+      - .env
+    networks:
+      - cda-network
+    # Exposing the gate on port 8001
     command: uvicorn cda.gate.engine:app --host 0.0.0.0 --port 8001
 
 networks:
-  default:
-    name: cda-network
+  cda-network:
+    driver: bridge
+
+# Volumes configuration for data persistence
+volumes:
+  cda_data:
