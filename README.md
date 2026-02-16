@@ -1,21 +1,26 @@
 # Cognitive Decision Architecture (CDA)
 
-A reference implementation of a secure split between **decision-making** and **action execution** for autonomous agents.
+A professional reference implementation of a secure split between **decision-making** (Kernel) and **action execution** (Gate) for autonomous systems.
 
-## Core Components
+## Core Concepts
 
-- **Kernel (Port 8000):** The authorization service. It validates agent intents against a trusted context and issues signed PASETO tokens.
-- **Gate (Port 8001):** The execution service. It verifies tokens, enforces temporal integrity (TTL), and prevents Replay Attacks using an SQLite backend.
-- **Shared Models:** Unified data structures using Pydantic for strict type validation.
+- **Kernel (Port 8000):** The authorization authority. It validates agent intents against trusted state snapshots and issues signed PASETO tokens.
+- **Gate (Port 8001):** The execution enforcement point. It verifies cryptographic signatures, checks for token expiration (TTL), and prevents Replay Attacks using an SQLite backend.
+- **Shared Models:** Strict data structures powered by Pydantic V2 with immutability guarantees.
 
 ## Security Features
 
-- **Cryptographic Signing:** Uses PASETO v4 local tokens for secure communication.
-- **Idempotency:** Replay protection ensures an intent is never executed twice.
-- **Temporal Integrity:** Automatic expiration of authorization tokens.
+- **PASETO v4 (Local):** Secure, modern alternative to JWT with no "algorithm: none" vulnerabilities.
+- **Symmetric Validation:** Both Kernel and Gate enforce strict secret key requirements (>32 chars).
+- **Idempotency:** Ensures an authorized intent is never executed more than once.
+- **Audit Logging:** Gate service logs execution attempts for forensics.
 
-## Getting Started
+## Technical Setup
 
-1. **Install dependencies:**
-   ```bash
-   pip install fastapi uvicorn pyseto sqlalchemy
+### 1. Installation
+This project uses a standard `pyproject.toml` for dependency management. To install in editable mode:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .

@@ -1,63 +1,69 @@
+# cda/gate/engine.py
+
 import os
-import json
-from datetime import datetime, timezone
-from typing import Annotated, Generator
-from fastapi import FastAPI, HTTPException, Depends, status
-from pyseto import Key, Paseto
-from sqlalchemy import String, DateTime, create_engine, select
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, sessionmaker
-from dotenv import load_dotenv
+from typing import Any, Dict, Optional
+from datetime import datetime, timedelta, timezone
 
-load_dotenv()
+# Flexible imports to handle different pyseto versions
+try:
+    from pyseto import Paseto, PasetoMessage, Token
+except ImportError:
+    # Fallback for newer or different versions
+    from pyseto import Paseto, Token
+    PasetoMessage = Any 
 
-SECRET_KEY_RAW = os.getenv("CDA_SECRET_KEY")
-GATE_KEY = Key.new(version=4, purpose="local", key=SECRET_KEY_RAW.encode())
+class PasetoEngine:
+    """
+    PASETO (Platform-Agnostic Security Tokens) Engine for secure communication.
+    Uses V4.Public for asymmetric signing.
+    """
 
-class Base(DeclarativeBase):
-    pass
+    def __init__(self):
+        # In a real app, load these from secure env vars or KMS
+        self.private_key_pem = os.getenv("PASETO_PRIVATE_KEY", "")
+        self.public_key_pem = os.getenv("PASETO_PUBLIC_KEY", "")
+        self.version = "v4"
+        self.purpose = "public"
 
-class ExecutedIntent(Base):
-    __tablename__ = "executed_intents"
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    entity_id: Mapped[str] = mapped_column(String)
-    action: Mapped[str] = mapped_column(String)
-    executed_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    def generate_token(self, payload: Dict[str, Any], expires_in_minutes: int = 60) -> str:
+        """
+        Generates a signed PASETO token.
+        """
+        if not self.private_key_pem:
+            raise ValueError("Private key is not configured")
 
-DATABASE_URL = "sqlite:///./cda_gate.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        # Set expiration
+        expiration = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
+        payload["exp"] = expiration.isoformat()
+        
+        # Create token
+        token = Paseto.encode(
+            key=self.private_key_pem,
+            payload=payload,
+            footer={"version": "1.0"},
+            exp=expires_in_minutes * 60 # some versions use seconds
+        )
+        
+        return token.decode("utf-8") if isinstance(token, bytes) else token
 
-def get_db() -> Generator[Session, None, None]:
-    with SessionLocal() as db:
-        yield db
+    def verify_token(self, token: str) -> Dict[str, Any]:
+        """
+        Verifies and decodes a PASETO token.
+        """
+        if not self.public_key_pem:
+            raise ValueError("Public key is not configured")
 
-app = FastAPI(title="CDA Execution Gate API")
+        try:
+            decoded = Paseto.decode(
+                token,
+                keys=self.public_key_pem
+            )
+            # Handle different return types from pyseto versions
+            if hasattr(decoded, "payload"):
+                return decoded.payload
+            return decoded
+        except Exception as e:
+            raise ValueError(f"Invalid or expired token: {str(e)}")
 
-@app.on_event("startup")
-def init_db():
-    Base.metadata.create_all(bind=engine)
-
-@app.post("/execute", status_code=status.HTTP_201_CREATED)
-def execute_token(token: str, db: Annotated[Session, Depends(get_db)]):
-    try:
-        decoded = Paseto.new().decode(GATE_KEY, token)
-        manifest = json.loads(decoded.payload)
-        intent_id = manifest["intent_id"]
-
-        # Replay Protection
-        stmt = select(ExecutedIntent).where(ExecutedIntent.id == intent_id)
-        if db.execute(stmt).scalars().first():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Intent already executed")
-
-        # Temporal Integrity
-        created_at = datetime.fromisoformat(manifest["created_at"])
-        if (datetime.now(timezone.utc) - created_at).total_seconds() > manifest["ttl"]:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token Expired")
-
-        new_record = ExecutedIntent(id=intent_id, entity_id=manifest["entity_id"], action=manifest["action"])
-        db.add(new_record)
-        db.commit()
-
-        return {"status": "success", "intent_id": intent_id}
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Security Token")
+# Global instance
+paseto_engine = PasetoEngine()

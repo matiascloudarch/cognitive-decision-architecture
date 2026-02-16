@@ -1,0 +1,5 @@
+INFO:     Started server process [15900]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50081 - "POST /execute?token=v4.local.AHr5EY3WMP7BlQ0FjRHwnIgkHAz7HRAB64SGxQxMor1rwwmdPIVhafIBTpyG19ZKE0vgNqN1PIrDLJk9jMy_DCxyuRjZnXKpeCOh_UEtztf3EYtym59CUpM7sPAif5sVxmDrYjOSedWlqOlo2eQxg23421hxsbygtb5HqhQjTqm6-BcpS6sm8l2fpoykRelAx1gsNrfyOzifyzDxDZyRugI-Hcx_Qs98W5UhWwwz-DZnpVbCIwLPQJIG1iAzYe0ILuFnSF-B14N7r1JvKPSDVCz-yK3U8JhOjZ8Gzq2dYp3eSuNYASBLLNuak2mDezQfuCItSEPJuk_TRXQx8zskmzmsfjuJR2NpgaUw0_EqOUKHXhEy.Y2RhLXYxMy40 HTTP/1.1" 201 Created

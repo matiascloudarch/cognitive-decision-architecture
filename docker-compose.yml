@@ -1,0 +1,24 @@
+services:
+  kernel:
+    build: .
+    container_name: cda-kernel
+    ports:
+      - "8000:8000"
+    environment:
+      - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
+    command: uvicorn cda.kernel.engine:app --host 0.0.0.0 --port 8000
+
+  gate:
+    build: .
+    container_name: cda-gate
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./cda_gate.db:/app/cda_gate.db
+    environment:
+      - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
+    command: uvicorn cda.gate.engine:app --host 0.0.0.0 --port 8001
+
+networks:
+  default:
+    name: cda-network
