@@ -4,4 +4,5 @@ __pycache__/
 *.py[cod]
 *.db
 *.log
-.DS_Storecda.egg-info/
+.DS_Store
+cda.egg-info/

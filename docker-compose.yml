@@ -10,7 +10,7 @@ services:
       - cda-network
     environment:
       - PYTHONPATH=/app
-    # Ensure uvicorn is using 0.0.0.0 to accept external connections from the host
+      - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
     command: python3 -m uvicorn cda.kernel.engine:app --host 0.0.0.0 --port 8000 --reload
 
   gate:
@@ -24,20 +24,8 @@ services:
       - cda-network
     environment:
       - PYTHONPATH=/app
+      - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
     command: python3 -m uvicorn cda.gate.engine:app --host 0.0.0.0 --port 8001 --reload
-
-  monitor:
-    build: .
-    container_name: cda-monitor
-    ports:
-      - "8002:8002"
-    volumes:
-      - .:/app
-    networks:
-      - cda-network
-    environment:
-      - PYTHONPATH=/app
-    command: python3 -m uvicorn cda.shared.monitor:app --host 0.0.0.0 --port 8002 --reload
 
 networks:
   cda-network:

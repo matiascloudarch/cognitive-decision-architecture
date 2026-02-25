@@ -1,43 +1,48 @@
 import pytest
-import json
-from pyseto import Paseto, Key
-from cda.kernel.engine import authorize, KERNEL_KEY
-from cda.shared.models import Intent, ContextSnapshot
+from cda.kernel.engine import KERNEL_KEY
+from cda.shared.models import Intent, MOCK_USER_DB
 
-def test_full_security_lifecycle():
-    """Validates the cryptographic handoff between Kernel logic and Gate verification."""
-    
-    # 1. Setup Trusted Context
-    context = ContextSnapshot(
-        entity_id="user-789",
-        state={"balance": 1000, "version": 1}
-    )
+# We test the logic via the app's internal functions or simulated requests
+from fastapi.testclient import TestClient
+from cda.kernel.engine import app
 
-    # 2. Setup Agent Intent
-    intent = Intent(
-        entity_id="user-789",
-        source="agent-007",
-        action="transfer_funds",
-        params={"amount": 500}
-    )
+client = TestClient(app)
 
-    # 3. Kernel Decision (Produces Token)
-    result = authorize(intent, context)
-    assert result["decision"] == "allow"
-    token = result["token"]
+def test_auto_approval_logic():
+    """Tests that amounts under the limit are approved automatically."""
+    payload = {
+        "entity_id": "user-001",
+        "agent_id": "test-agent",
+        "action": "transfer_funds",
+        "params": {"amount": 100}
+    }
+    response = client.post("/authorize", json=payload)
+    assert response.status_code == 200
+    assert response.json()["decision"] == "ALLOW"
+    assert "paseto_token" in response.json()
 
-    # 4. Gate-side verification logic simulation
-    decoded = Paseto.new().decode(KERNEL_KEY, token)
-    manifest = json.loads(decoded.payload)
-    
-    assert manifest["action"] == "transfer_funds"
-    assert manifest["entity_id"] == "user-789"
-    assert manifest["intent_id"] == str(intent.id)
+def test_human_escalation_logic():
+    """Tests that high amounts trigger a REQUIRES_HUMAN_REVIEW status."""
+    payload = {
+        "entity_id": "user-001",
+        "agent_id": "test-agent",
+        "action": "transfer_funds",
+        "params": {"amount": 900}
+    }
+    response = client.post("/authorize", json=payload)
+    assert response.status_code == 200
+    assert response.json()["decision"] == "REQUIRES_HUMAN_REVIEW"
 
-def test_insufficient_balance_rejection():
-    """Checks that the Kernel enforces policies before signing tokens."""
-    context = ContextSnapshot(entity_id="user-1", state={"balance": 5})
-    intent = Intent(entity_id="user-1", source="agent", action="buy", params={"amount": 100})
-
-    with pytest.raises(ValueError, match="Insufficient balance"):
-        authorize(intent, context)
+def test_human_signature_approval():
+    """Tests that providing a human signature unlocks the authorization."""
+    payload = {
+        "entity_id": "user-001",
+        "agent_id": "test-agent",
+        "action": "transfer_funds",
+        "params": {"amount": 900}
+    }
+    # Resubmitting with human signature
+    response = client.post("/authorize?human_signature=Matias-S", json=payload)
+    assert response.status_code == 200
+    assert response.json()["decision"] == "ALLOW"
+    assert response.json()["audit_trail"]["human_auditor"] == "Matias-S"
