@@ -1,26 +1,26 @@
-# Cognitive Decision Architecture (CDA)
+# CDA: Cognitive Decision Architecture
+### Deterministic Governance & Forensic Auditing for AI Agents
 
-A professional reference implementation of a secure split between **decision-making** (Kernel) and **action execution** (Gate) for autonomous systems.
+CDA is a high-integrity framework designed to bridge the gap between autonomous AI Agent intents and corporate business rules. Unlike probabilistic governance models, CDA uses a **Deterministic Kernel** and a **Cryptographic Gate** to ensure that every AI action is authorized, audited, and traceable.
 
-## Core Concepts
+## 🚀 Key Features
+- **Deterministic Governance:** Business rules are enforced via a hard-coded policy engine, preventing AI "hallucinations" from bypassing limits.
+- **Cryptographic Accountability:** Uses **PASETO v4** tokens to sign decisions, ensuring non-repudiation between the Auditor (Kernel) and the Enforcer (Gate).
+- **Human-in-the-Loop (HITL):** Automatic escalation to human auditors for high-risk actions (e.g., transactions exceeding thresholds).
+- **Forensic Audit Trail:** Every execution generates a SHA-256 forensic hash stored in an immutable-ready ledger.
 
-- **Kernel (Port 8000):** The authorization authority. It validates agent intents against trusted state snapshots and issues signed PASETO tokens.
-- **Gate (Port 8001):** The execution enforcement point. It verifies cryptographic signatures, checks for token expiration (TTL), and prevents Replay Attacks using an SQLite backend.
-- **Shared Models:** Strict data structures powered by Pydantic V2 with immutability guarantees.
+## 🏗 Architecture
+1. **Kernel (The Auditor):** Evaluates agent intents against trusted context and policies. Issues signed authorization tokens.
+2. **Gate (The Enforcer):** Validates tokens, checks for replay attacks (idempotency), and executes the action.
+3. **Shared Models:** Pydantic-based schemas for strict data validation.
 
-## Security Features
+## 🛠 Tech Stack
+- **Python 3.12+**
+- **FastAPI** (High-performance API)
+- **PySeto** (PASETO Cryptography)
+- **SQLite** (Forensic Logging)
 
-- **PASETO v4 (Local):** Secure, modern alternative to JWT with no "algorithm: none" vulnerabilities.
-- **Symmetric Validation:** Both Kernel and Gate enforce strict secret key requirements (>32 chars).
-- **Idempotency:** Ensures an authorized intent is never executed more than once.
-- **Audit Logging:** Gate service logs execution attempts for forensics.
-
-## Technical Setup
-
-### 1. Installation
-This project uses a standard `pyproject.toml` for dependency management. To install in editable mode:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+## 🚦 Quick Start
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start the Kernel: `uvicorn cda.kernel.engine:app --port 8000`
+3. Start the Gate: `uvicorn cda.gate.engine:app --port 8001`

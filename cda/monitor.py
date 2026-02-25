@@ -1,76 +1,82 @@
+# cda/monitor/monitor.py
 import os
-import asyncio
-import sqlite3
-from datetime import datetime
-from rich.console import Console
-from rich.table import Table
-from rich.live import Live
-from rich.panel import Panel
+import aiosqlite
+import json
+from datetime import datetime, timezone
+from fastapi import FastAPI, BackgroundTasks
+from cda.shared.models import Intent
 
-# --- CONFIGURATION ---
-DB_PATH = "cda_gate.db"
-console = Console()
+# Initialize FastAPI app for the Security Monitor
+app = FastAPI(title="CDA Security Monitor (Async)")
 
-def get_logs():
+# Database file path
+DB_PATH = "cda_audit.db"
+
+async def init_db():
     """
-    Fetches execution logs from the Gate's database.
-    Replaced blocking calls with a safer connection management.
+    Initializes the SQLite database asynchronously.
+    Creates the security_logs table if it doesn't exist.
     """
-    try:
-        if not os.path.exists(DB_PATH):
-            return []
-            
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        # Optimized query for performance
-        cursor.execute("""
-            SELECT id, entity_id, action, executed_at 
-            FROM executed_intents 
-            ORDER BY executed_at DESC 
-            LIMIT 15
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS security_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                intent_id TEXT,
+                action TEXT,
+                entity_id TEXT,
+                payload TEXT,
+                timestamp TEXT
+            )
         """)
-        
-        rows = cursor.fetchall()
-        conn.close()
-        return rows
-    except sqlite3.OperationalError:
-        # Handles cases where the database is locked or table is not yet created
-        return []
+        await db.commit()
 
-def generate_table() -> Table:
+@app.on_event("startup")
+async def startup_event():
     """
-    Generates a professional real-time visual table for the terminal.
+    FastAPI startup trigger to ensure the database is ready.
     """
-    table = Table(title="CDA Global Execution Monitor", highlight=True)
-    table.add_column("Intent ID", style="cyan", no_wrap=True)
-    table.add_column("Entity", style="magenta")
-    table.add_column("Action", style="green")
-    table.add_column("Timestamp", style="yellow")
+    await init_db()
 
-    logs = get_logs()
-    if not logs:
-        table.add_row("No data", "Waiting for", "execution...", "---")
-    else:
-        for row in logs:
-            table.add_row(str(row[0]), str(row[1]), str(row[2]), str(row[3]))
-            
-    return table
-
-async def run_monitor():
+async def log_intent_to_db(intent: Intent):
     """
-    Async loop to refresh the UI without blocking the system.
+    Worker function to persist intent data to SQLite without blocking the main thread.
     """
-    console.clear()
-    console.print(Panel("[bold green]CDA Monitoring System Active[/bold green]\nMonitoring 'cda_gate.db' for activity..."))
-    
-    with Live(generate_table(), refresh_per_second=2) as live:
-        while True:
-            await asyncio.sleep(0.5)
-            live.update(generate_table())
-
-if __name__ == "__main__":
     try:
-        asyncio.run(run_monitor())
-    except KeyboardInterrupt:
-        console.print("\n[bold red]Monitor stopped by user.[/bold red]")
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "INSERT INTO security_logs (intent_id, action, entity_id, payload, timestamp) VALUES (?, ?, ?, ?, ?)",
+                (
+                    str(intent.id),
+                    intent.action,
+                    intent.entity_id,
+                    intent.model_dump_json(),
+                    datetime.now(timezone.utc).isoformat()
+                )
+            )
+            await db.commit()
+    except Exception as e:
+        # In a real scenario, use a proper logger here
+        print(f"Async Logging Error: {e}")
+
+@app.post("/log", status_code=202)
+async def log_intent(intent: Intent, background_tasks: BackgroundTasks):
+    """
+    Endpoint to receive logs. 
+    Returns 202 Accepted immediately and delegates DB write to a background task.
+    """
+    background_tasks.add_task(log_intent_to_db, intent)
+    return {
+        "status": "logging_scheduled", 
+        "intent_id": str(intent.id)
+    }
+
+@app.get("/logs")
+async def get_logs():
+    """
+    Fetches the last 50 security logs asynchronously.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM security_logs ORDER BY id DESC LIMIT 50") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]

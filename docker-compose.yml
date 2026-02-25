@@ -1,40 +1,44 @@
-version: '3.8'
-
 services:
-  # --- DECISION AUTHORITY (KERNEL) ---
   kernel:
     build: .
     container_name: cda-kernel
-    restart: always
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    volumes:
+      - .:/app
     networks:
       - cda-network
-    # Production-ready uvicorn command
-    command: uvicorn cda.kernel.engine:app --host 0.0.0.0 --port 8000
+    environment:
+      - PYTHONPATH=/app
+    # Ensure uvicorn is using 0.0.0.0 to accept external connections from the host
+    command: python3 -m uvicorn cda.kernel.engine:app --host 0.0.0.0 --port 8000 --reload
 
-  # --- EXECUTION ENFORCEMENT (GATE) ---
   gate:
     build: .
     container_name: cda-gate
-    restart: always
     ports:
       - "8001:8001"
     volumes:
-      - ./cda_gate.db:/app/cda_gate.db
-    env_file:
-      - .env
+      - .:/app
     networks:
       - cda-network
-    # Exposing the gate on port 8001
-    command: uvicorn cda.gate.engine:app --host 0.0.0.0 --port 8001
+    environment:
+      - PYTHONPATH=/app
+    command: python3 -m uvicorn cda.gate.engine:app --host 0.0.0.0 --port 8001 --reload
+
+  monitor:
+    build: .
+    container_name: cda-monitor
+    ports:
+      - "8002:8002"
+    volumes:
+      - .:/app
+    networks:
+      - cda-network
+    environment:
+      - PYTHONPATH=/app
+    command: python3 -m uvicorn cda.shared.monitor:app --host 0.0.0.0 --port 8002 --reload
 
 networks:
   cda-network:
     driver: bridge
-
-# Volumes configuration for data persistence
-volumes:
-  cda_data:

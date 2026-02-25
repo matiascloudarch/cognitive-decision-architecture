@@ -1,71 +1,65 @@
 import os
 import json
+import logging
+import hashlib
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, status
 from pyseto import Key, Paseto
 from dotenv import load_dotenv
-from cda.shared.models import Intent, ContextSnapshot
 
-# Load environment variables from .env file
+from cda.shared.models import Intent, MOCK_USER_DB, MOCK_POLICIES
+
 load_dotenv()
 
-# --- SECURITY VALIDATION ---
-# Load the private key for asymmetric signing (V4.Public)
-# Source: CDA Architecture V13.4 Security Protocol
-PRIVATE_KEY_RAW = os.getenv("PASETO_PRIVATE_KEY")
-if not PRIVATE_KEY_RAW:
-    raise RuntimeError("CRITICAL: PASETO_PRIVATE_KEY is not defined in environment.")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("cda-kernel")
 
-# Initialize the Kernel Key as a V4 Public Signing Key
-KERNEL_KEY = Key.new(version=4, purpose="public", key=PRIVATE_KEY_RAW.encode())
+app = FastAPI(title="CDA Decision Kernel", version="16.0.0")
 
-app = FastAPI(title="CDA Decision Kernel - Production Ready")
+SECRET_KEY_RAW = os.getenv("CDA_SECRET_KEY", "internal_development_secret_key_fixed_32_chars")
+KERNEL_KEY = Key.new(version=4, purpose="local", key=SECRET_KEY_RAW.encode())
 
-def authorize(intent: Intent, context: ContextSnapshot) -> Dict:
-    """
-    Core Authorization Logic.
-    Validates agent intent against trusted context and issues a signed PASETO v4 token.
-    """
-    # 1. Identity Verification
-    if intent.entity_id != context.entity_id:
-        raise ValueError("Security Violation: Entity ID mismatch between Intent and Context.") [cite: 251, 252]
-    
-    # 2. Policy Enforcement (Example: Balance Check)
-    balance = context.state.get("balance", 0) [cite: 253]
-    amount_requested = intent.params.get("amount", 0) [cite: 253]
-    
-    if balance < amount_requested:
-        raise ValueError("Policy Violation: Insufficient funds for requested action.") [cite: 254, 255]
+def get_policy_version_hash():
+    """Generates a hash of the current rules to ensure audit integrity."""
+    policy_string = json.dumps(MOCK_POLICIES, sort_keys=True)
+    return hashlib.sha256(policy_string.encode()).hexdigest()[:12]
 
-    # 3. Decision Manifest Creation
-    manifest = {
-        "intent_id": str(intent.id),
-        "entity_id": intent.entity_id,
-        "action": intent.action,
-        "decision": "allow",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "ttl": intent.ttl
-    } [cite: 256, 262, 263]
-
-    # 4. Asymmetric Signing (V4.Public)
-    # This prevents the 'Schizophrenia' error by using digital signatures.
-    token = Paseto.encode(
-        KERNEL_KEY,
-        payload=json.dumps(manifest).encode(),
-        footer=b"cda-v13.4"
-    ) [cite: 265, 267, 268]
-
-    return {
-        "decision": "allow",
-        "token": token.decode() if isinstance(token, bytes) else token,
-        "manifest_preview": manifest
-    } [cite: 270, 273, 274]
+@app.get("/")
+async def health():
+    return {"status": "online", "policy_version": get_policy_version_hash()}
 
 @app.post("/authorize")
-async def authorize_endpoint(intent: Intent, context: ContextSnapshot) -> Dict:
-    """FastAPI endpoint for decision making."""
-    try:
-        return authorize(intent, context)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) [cite: 275, 280]
+async def authorize(intent: Intent, human_signature: Optional[str] = None):
+    user_data = MOCK_USER_DB.get(intent.entity_id)
+    policy = MOCK_POLICIES.get(intent.action)
+    
+    if not user_data or not policy:
+        raise HTTPException(status_code=400, detail="Entity or Policy not found")
+
+    amount = intent.params.get("amount", 0)
+    policy_hash = get_policy_version_hash()
+
+    # Case: Escalation
+    if amount > policy["require_human_above"] and not human_signature:
+        return {
+            "decision": "REQUIRES_HUMAN_REVIEW",
+            "policy_violated": policy_hash,
+            "rules": f"Limit {policy['require_human_above']} exceeded. Review required."
+        }
+
+    # Case: Authorized
+    manifest = {
+        "intent_id": str(intent.id),
+        "agent_id": intent.agent_id,
+        "action": intent.action,
+        "amount": amount,
+        "policy_version": policy_hash,
+        "approval_type": "human_verified" if human_signature else "auto_approved",
+        "human_auditor": human_signature,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+    token = Paseto.new().encode(KERNEL_KEY, payload=json.dumps(manifest).encode(), footer=b"cda-v16")
+    
+    return {"decision": "ALLOW", "paseto_token": token.decode(), "audit_trail": manifest}

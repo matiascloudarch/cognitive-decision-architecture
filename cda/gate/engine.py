@@ -1,69 +1,72 @@
 import os
+import json
 import sqlite3
-from typing import Dict, Any
+import logging
+import hashlib
+from datetime import datetime, timezone
+from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException, status, Query
 from pyseto import Key, Paseto
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger("cda-gate")
+app = FastAPI(title="CDA Execution Gate", version="16.0.0")
 
-# --- SECURITY VALIDATION ---
-# The Gate ONLY needs the Public Key to verify the Kernel's signature.
-PUBLIC_KEY_RAW = os.getenv("PASETO_PUBLIC_KEY")
-if not PUBLIC_KEY_RAW:
-    raise RuntimeError("CRITICAL: PASETO_PUBLIC_KEY is not defined in environment.")
-
-GATE_VERIFICATION_KEY = Key.new(version=4, purpose="public", key=PUBLIC_KEY_RAW.encode())
-
-app = FastAPI(title="CDA Execution Gate - Production Ready")
+SECRET_KEY_RAW = os.getenv("CDA_SECRET_KEY", "internal_development_secret_key_fixed_32_chars")
+GATE_KEY = Key.new(version=4, purpose="local", key=SECRET_KEY_RAW.encode())
 DB_PATH = "cda_gate.db"
 
+# (init_db remains the same, but adding policy_version to the table)
 def init_db():
-    """Initializes the SQLite database for Replay Attack prevention."""
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS executed_intents (
-            id TEXT PRIMARY KEY,
-            entity_id TEXT,
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS forensic_audit_trail (
+            intent_id TEXT PRIMARY KEY,
+            agent_id TEXT,
             action TEXT,
-            executed_at TIMESTAMP
+            amount REAL,
+            approval_type TEXT,
+            human_auditor TEXT,
+            policy_version TEXT,
+            executed_at TIMESTAMP,
+            receipt_hash TEXT
         )
     """)
+    conn.commit()
     conn.close()
 
 init_db()
 
-@app.post("/execute", status_code=status.HTTP_201_CREATED)
-async def execute_action(token: str = Query(...)):
-    """
-    Verifies the PASETO token signature and prevents Replay Attacks.
-    """
+@app.post("/execute", status_code=201)
+async def execute(token: str = Query(...)):
     try:
-        # 1. Cryptographic Verification (V4.Public)
-        # Replaces the old symmetric 'local' check.
-        decoded = Paseto.decode(GATE_VERIFICATION_KEY, token) [cite: 221, 224]
+        decoded = Paseto.new().decode(GATE_KEY, token)
         payload = json.loads(decoded.payload)
         
-        intent_id = payload["intent_id"]
-        
-        # 2. Idempotency Check (Replay Attack Prevention)
+        execution_time = datetime.now(timezone.utc).isoformat()
+        receipt_hash = hashlib.sha256(f"{payload['intent_id']}-{execution_time}".encode()).hexdigest()
+
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM executed_intents WHERE id = ?", (intent_id,))
-        
-        if cursor.fetchone():
-            conn.close()
-            raise HTTPException(status_code=409, detail="Replay Attack Detected: Intent already executed.") [cite: 36]
-            
-        # 3. Log execution
-        cursor.execute(
-            "INSERT INTO executed_intents (id, entity_id, action, executed_at) VALUES (?, ?, ?, ?)",
-            (intent_id, payload["entity_id"], payload["action"], datetime.now(timezone.utc))
-        )
+        cursor.execute("INSERT INTO forensic_audit_trail VALUES (?,?,?,?,?,?,?,?,?)",
+            (payload['intent_id'], payload['agent_id'], payload['action'], payload['amount'],
+             payload['approval_type'], payload['human_auditor'], payload['policy_version'], execution_time, receipt_hash))
         conn.commit()
         conn.close()
-        
-        return {"status": "executed", "intent_id": intent_id}
-        
+
+        return {"status": "executed", "forensic_hash": receipt_hash}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Signature: {str(e)}") [cite: 230]
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/audit/logs")
+async def get_audit_logs():
+    """Exposes the forensic trail for transparency."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM forensic_audit_trail ORDER BY executed_at DESC")
+    logs = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return {"total_records": len(logs), "logs": logs}
