@@ -3,7 +3,7 @@
 
 CDA is a high-integrity framework designed to bridge the gap between autonomous AI Agent intents and corporate business rules.
 
-## 🚀 Key Features
+##   Key Features
 - **Deterministic Governance:** Policies enforced via hard-coded rules, preventing AI "hallucinations".
 - **Cryptographic Accountability:** Uses **PASETO v4** tokens for non-repudiation.
 - **Human-in-the-Loop (HITL):** Escalation for high-risk actions.
