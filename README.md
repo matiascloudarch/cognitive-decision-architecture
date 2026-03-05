@@ -49,5 +49,5 @@ uvicorn cda.gate.engine:app --port 8001
 ## ⚖️ License
 Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
-Own the decision.# Start the Integrity Gate (Port 8001)
-uvicorn cda.gate.engine:app --port 8001
+Own the decision.
+
