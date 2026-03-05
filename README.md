@@ -42,6 +42,9 @@ pip install -r requirements.txt
 ```Bash
 # Start the Policy Kernel (Port 8000)
 uvicorn cda.kernel.engine:app --port 8000
+
+# Start the Integrity Gate (Port 8001)
+uvicorn cda.gate.engine:app --port 8001
 ```
 ## ⚖️ License
 Licensed under the Apache License, Version 2.0. See LICENSE for details.
