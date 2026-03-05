@@ -36,9 +36,10 @@ cd cognitive-decision-architecture
 # Install dependencies
 pip install -r requirements.txt
 ```
-```
-2. Launching the Services
-Bash
+
+### 2. Launching the Services
+
+```Bash
 # Start the Policy Kernel (Port 8000)
 uvicorn cda.kernel.engine:app --port 8000
 ```
