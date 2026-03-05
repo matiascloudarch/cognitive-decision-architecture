@@ -24,10 +24,6 @@ Where:
 2. **Gate (The Enforcer):** Deterministically validates tokens and finalizes execution (Fail-closed by design).
 3. **Ledger (The Forensic Record):** Provides a tamper-evident audit trail with SHA-256 forensic hashes.
 
-## ⚖️ License
-Licensed under the Apache License, Version 2.0. See LICENSE for details.
-
-Own the decision.
 
 ## 🚦 Quick Start
 
@@ -39,10 +35,15 @@ cd cognitive-decision-architecture
 
 # Install dependencies
 pip install -r requirements.txt
+```
+```
 2. Launching the Services
 Bash
 # Start the Policy Kernel (Port 8000)
 uvicorn cda.kernel.engine:app --port 8000
+```
+## ⚖️ License
+Licensed under the Apache License, Version 2.0. See LICENSE for details.
 
-# Start the Integrity Gate (Port 8001)
+Own the decision.# Start the Integrity Gate (Port 8001)
 uvicorn cda.gate.engine:app --port 8001
