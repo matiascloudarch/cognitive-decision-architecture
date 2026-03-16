@@ -44,11 +44,12 @@ graph TD
 ⚖️ Regulatory Alignment
 CDA is architected to satisfy 2026 compliance standards by shifting governance from documentation to runtime enforcement.
 
-Standard	Control Category	CDA Implementation
-EU AI Act	Art. 11 Traceability	SHA-256 Forensic Ledger & Normalized Intent Hashing
-NIST AI RMF	Measure & Manage	Decoupled Policy Kernel for Deterministic Rules
-ISO/IEC 42001	Operational Control	Cryptographic Seals (PASETO v4) preventing drift
-FINRA 2026	Supervisory Control	Fail-Closed Integrity Gate (Human-in-the-loop logic)
+| Requirement | CDA Implementation |
+| :--- | :--- |
+| **Traceability** | Every authorized action generates a SHA-256 hash binding human signature, active policy version, and normalized intent. |
+| **Integrity** | Cryptographic seals (PASETO v4) ensure that documentation matches runtime execution. |
+| **Accountability** | Decoupled architecture: the Reasoning entity (LLM) never holds the execution key. |
+| **Auditability** | Reconstructible forensic ledger with immutable policy versioning. |
 
 View the Full Regulatory Mapping and Technical Architecture Specs for deeper details.
 
