@@ -51,7 +51,8 @@ CDA is architected to satisfy 2026 compliance standards by shifting governance f
 | **Accountability** | Decoupled architecture: the Reasoning entity (LLM) never holds the execution key. |
 | **Auditability** | Reconstructible forensic ledger with immutable policy versioning. |
 
-View the Full Regulatory Mapping and Technical Architecture Specs for deeper details.
+> [!TIP]
+> View the [Full Regulatory Mapping](./regulatory-mapping.md) and [Technical Architecture Specs](./architecture.md) for deeper details.
 
 ## 🚦 Quick Start
 
