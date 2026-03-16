@@ -24,6 +24,31 @@ Where:
 2. **Gate (The Enforcer):** Deterministically validates tokens and finalizes execution (Fail-closed by design).
 3. **Ledger (The Forensic Record):** Provides a tamper-evident audit trail with SHA-256 forensic hashes.
 
+## 🔄 System Execution Flow
+The CDA operates as a five-stage pipeline to ensure that no AI intent reaches execution without a deterministic validation.
+
+```mermaid
+graph TD
+    A[1. Agent: Reasoning] --> B[2. Intent Normalization]
+    B --> C[3. Policy Kernel: Audit]
+    C --> D{4. Integrity Gate}
+    D -->|Authorized| E[5. Execution]
+    D -->|Violation| F[Fail-Closed State]
+    
+    style D fill:#f96,stroke:#333,stroke-width:2px
+    style F fill:#ff9999,stroke:#cc0000
+```
+
+⚖️ Regulatory Alignment
+CDA is architected to satisfy 2026 compliance standards by shifting governance from documentation to runtime enforcement.
+
+Standard,Control Category,CDA Implementation
+EU AI Act,Art. 11 Traceability,SHA-256 Forensic Ledger & Normalized Intent Hashing
+NIST AI RMF,Measure & Manage,Decoupled Policy Kernel for Deterministic Rules
+ISO/IEC 42001,Operational Control,Cryptographic Seals (PASETO v4) preventing drift
+FINRA 2026,Supervisory Control,Fail-Closed Integrity Gate (Human-in-the-loop logic)
+
+View the Full Regulatory Mapping and Technical Architecture Specs for deeper details.
 
 ## 🚦 Quick Start
 
