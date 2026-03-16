@@ -35,9 +35,10 @@ graph TD
     D -->|Authorized| E[5. Execution]
     D -->|Violation| F[Fail-Closed State]
     
-    style D fill:#f96,stroke:#333,stroke-width:2px
-    style E fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style F fill:#f8d7da,stroke:#dc3545,stroke-width:2px
+    %% Colores sobrios y con alto contraste para texto blanco
+    style D fill:#2e3440,stroke:#d8dee9,stroke-width:2px,color:white
+    style E fill:#4f7c3c,stroke:#2d5024,stroke-width:2px,color:white
+    style F fill:#bf616a,stroke:#8f4b53,stroke-width:2px,color:white
 ```
 
 ⚖️ Regulatory Alignment
