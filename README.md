@@ -25,7 +25,7 @@ Where:
 3. **Ledger (The Forensic Record):** Provides a tamper-evident audit trail with SHA-256 forensic hashes.
 
 ## 🔄 System Execution Flow
-The CDA operates as a five-stage pipeline to ensure that no AI intent reaches execution without a deterministic validation.
+The CDA operates as a five-stage pipeline to ensure that no AI intent reaches execution without deterministic validation.
 
 ```mermaid
 graph TD
@@ -36,7 +36,8 @@ graph TD
     D -->|Violation| F[Fail-Closed State]
     
     style D fill:#f96,stroke:#333,stroke-width:2px
-    style F fill:#ff9999,stroke:#cc0000
+    style E fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style F fill:#f8d7da,stroke:#dc3545,stroke-width:2px
 ```
 
 ⚖️ Regulatory Alignment
