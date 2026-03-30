@@ -1,4 +1,3 @@
-```markdown
 # CDA Mapping to OWASP LLM Top 10 (Standard v1.1) 🛡️
 
 This document provides a technical mapping of the **Cognitive Decision Architecture (CDA)** components against the **OWASP Top 10 for Large Language Model Applications**. 
@@ -10,7 +9,7 @@ The core objective of CDA is to enforce the **Sovereignty Invariant**:
 
 ## 🏗️ Architectural Overview
 
-```text
+```markdown
 ┌─────────────────────────────────────────────────────────────────┐
 │              COGNITIVE DECISION ARCHITECTURE (CDA)              │
 ├─────────────────────────────────────────────────────────────────┤
@@ -163,6 +162,6 @@ friction_layer:
 *Disclaimer: CDA is an architectural framework designed to mitigate risk, not a guarantee of total security. Always perform local penetration testing on your specific implementations.*
 
 **Version:** 1.0.0  
-**License:** CC BY-SA 4.0  
+**License:** APACHE 2.0  
 **Author:** Matias Salgado
 ```
