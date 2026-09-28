@@ -16,21 +16,22 @@ $$D(I) = R(I) \cdot \Sigma$$
 The AI Agent generates a raw intent based on a user prompt. This is a stochastic (probabilistic) process.
 
 ### 2. Intent Normalization
+
 To solve the "Fuzzy-to-Fixed" problem, CDA parses the raw intent into a structured JSON schema. 
 - *Example:* "Send 100 bucks to Alice" $\rightarrow$ `{ "action": "transfer", "amount": 100, "to": "Alice" }`.
 - This ensures the hash is deterministic and not sensitive to minor linguistic changes.
 
 ### 3. Policy Kernel (Audit)
-The normalized intent is evaluated against the current **Policy of Truth**. The Kernel returns a binary 1 (Authorized) or 0 (Denied).
+The normalized intent is evaluated against the current **Deterministic Policy Kernel (PEP)**. The Kernel returns a binary 1 (Authorized) or 0 (Denied).
 
-### 4. Integrity Gate (The Enforcement)
-The Gate verifies the **Sigma Seal**. It checks:
-- Is the PASETO token valid?
+### 4. Runtime Enforcement Boundary (The Enforcement)
+The **Runtime Enforcement Boundary** verifies the **Cryptographic Attestation Envelope**. It checks:
+- Is the Cryptographic Attestation Envelope valid?
 - Has the policy version drifted since the intent was created?
 - Is $R(I) = 1$?
 
 ### 5. Execution
-Only if the Gate validates the cryptographic envelope is the payload released to the external API or database.
+Only if the Runtime Enforcement Boundary validates the cryptographic envelope is the payload released to the external API or database.
 
 ## Fail-Closed Design
 If any part of the equation results in zero ($R(I)=0$ or $\Sigma=invalid$), the final decision $D(I)$ is mathematically forced to zero.

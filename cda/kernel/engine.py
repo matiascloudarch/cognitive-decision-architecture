@@ -21,7 +21,7 @@ SECRET_KEY_RAW = os.getenv("CDA_SECRET_KEY", "internal_development_secret_key_fi
 KERNEL_KEY = Key.new(version=4, purpose="local", key=SECRET_KEY_RAW.encode())
 
 def get_policy_version_hash():
-    """Generates a hash of the current rules to ensure audit integrity."""
+    """Genera un hash de las reglas actuales para asegurar la integridad de la auditoría."""
     policy_string = json.dumps(MOCK_POLICIES, sort_keys=True)
     return hashlib.sha256(policy_string.encode()).hexdigest()[:12]
 
@@ -40,7 +40,11 @@ async def authorize(intent: Intent, human_signature: Optional[str] = None):
     amount = intent.params.get("amount", 0)
     policy_hash = get_policy_version_hash()
 
-    # Case: Escalation
+    # Aplicación estricta de la política de límite máximo
+    if amount > policy["max_limit"]:
+        raise HTTPException(status_code=400, detail="Maximum limit exceeded")
+    
+    # Caso: Requiere revisión humana (escalamiento)
     if amount > policy["require_human_above"] and not human_signature:
         return {
             "decision": "REQUIRES_HUMAN_REVIEW",
@@ -48,7 +52,7 @@ async def authorize(intent: Intent, human_signature: Optional[str] = None):
             "rules": f"Limit {policy['require_human_above']} exceeded. Review required."
         }
 
-    # Case: Authorized
+    # Caso: Autorizado (ya sea por aprobación automática o porque existe firma humana)
     manifest = {
         "intent_id": str(intent.id),
         "agent_id": intent.agent_id,

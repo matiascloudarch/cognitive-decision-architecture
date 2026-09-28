@@ -19,26 +19,29 @@ Where:
 - **Forensic Policy Hashing:** Every decision is bound to a specific, hashed version of the policy Kernel to prevent governance drift.
 - **Zero-Latency Enforcement:** Policy state is sealed within the decision envelope, bypassing database bottlenecks at the execution boundary.
 
-## 🏗 Architecture
-1. **Kernel (The Auditor):** Evaluates intents against trusted policies using immutable versioning.
-2. **Gate (The Enforcer):** Deterministically validates tokens and finalizes execution (Fail-closed by design).
-3. **Ledger (The Forensic Record):** Provides a tamper-evident audit trail with SHA-256 forensic hashes.
+## Architecture (ITU-T FG-TIDA Alignment)
+
+CDA aligns with the terminology and concepts of the ITU-T FG-TIDA Working Group to ensure interoperability and understanding within the AI ecosystem.
+
+### Conceptual Mapping
+
+-   **Deterministic Policy Kernel / PEP (Policy Enforcement Point)**: Formerly known as "Kernel". This component evaluates agent intents against immutable security policies.
+-   **Runtime Enforcement Boundary / Execution Boundary**: Formerly known as "Gate". It handles the deterministic validation of attestations and finalizes action execution (designed for fail-closed).
+-   **Cryptographic Attestation Envelope / Attestation Envelope**: Formerly "PASETO Tokens". These are the cryptographic envelopes that encapsulate and seal Policy Kernel decisions, ensuring their integrity and non-repudiation.
+-   **Forensic Audit Ledger**: Formerly "Audit Log / SQLite". It provides an immutable and forensic audit trail of all decisions and events.
+-   **HITL (Human-in-the-Loop) Attestation**: Formerly "Human Signature". It represents the human attestation or signature required for high-risk actions, ensuring human intervention in critical decisions.
 
 ## 🔄 System Execution Flow
 The CDA operates as a five-stage pipeline to ensure that no AI intent reaches execution without deterministic validation.
 
 ```mermaid
 graph TD
-    A[1. Agent: Reasoning] --> B[2. Intent Normalization]
-    B --> C[3. Policy Kernel: Audit]
-    C --> D{4. Integrity Gate}
-    D -->|Authorized| E[5. Execution]
-    D -->|Violation| F[Fail-Closed State]
-    
-    %% Colores sobrios y con alto contraste para texto blanco
-    style D fill:#2e3440,stroke:#d8dee9,stroke-width:2px,color:white
-    style E fill:#4f7c3c,stroke:#2d5024,stroke-width:2px,color:white
-    style F fill:#bf616a,stroke:#8f4b53,stroke-width:2px,color:white
+    A[LLM Agent] --> B[Deterministic Policy Kernel (PEP)]
+    B --> C[Attestation Envelope]
+    C --> D{Runtime Enforcement Boundary}
+    D --> E[Forensic Audit Ledger]
+    D -- "Allow" --> F[Execution]
+    D -- "Deny" --> G[Fail-Closed State]
 ```
 
 ⚖️ Regulatory Alignment
@@ -70,12 +73,23 @@ pip install -r requirements.txt
 ### 2. Launching the Services
 
 ```Bash
-# Start the Policy Kernel (Port 8000)
+# Start the Deterministic Policy Kernel (Port 8000)
 uvicorn cda.kernel.engine:app --port 8000
 
-# Start the Integrity Gate (Port 8001)
+# Start the Runtime Enforcement Boundary (Port 8001)
 uvicorn cda.gate.engine:app --port 8001
 ```
+
+### 3. Run the Forensic Dashboard (Streamlit)
+```bash
+streamlit run cda/dashboard.py
+```
+
+### 4. Run the Hallucination Simulation
+```bash
+python cda/scripts/simulate_hallucination.py
+```
+
 ## ⚖️ License
 Licensed under the Apache License, Version 2.0. See LICENSE for details.
 

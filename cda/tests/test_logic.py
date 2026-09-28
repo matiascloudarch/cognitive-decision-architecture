@@ -33,6 +33,20 @@ def test_human_escalation_logic():
     assert response.status_code == 200
     assert response.json()["decision"] == "REQUIRES_HUMAN_REVIEW"
 
+def test_strict_policy_enforcement():
+    """Tests that the maximum limit is enforced."""
+    payload = {
+        "entity_id": "user-001",
+        "agent_id": "test-agent",
+        "action": "transfer_funds",
+        "params": {"amount": 2100}
+    }
+    response = client.post("/authorize", json=payload)
+    assert response.status_code == 400
+    assert "Maximum limit exceeded" in response.json()["detail"]
+
+
+
 def test_human_signature_approval():
     """Tests that providing a human signature unlocks the authorization."""
     payload = {

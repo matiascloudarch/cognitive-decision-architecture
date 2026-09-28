@@ -11,6 +11,7 @@ class Intent(BaseModel):
     agent_id: str = Field(...)
     action: str = Field(...)
     params: Dict[str, Any] = Field(default_factory=dict)
+    human_signature: Optional[str] = Field(None)
     # The agent might try to send a context, but we will ignore it 
     # and fetch our own in the Kernel for real auditing.
 
