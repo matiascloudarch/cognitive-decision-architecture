@@ -1,39 +1,84 @@
-from uuid import UUID, uuid4
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field, ConfigDict
+# cda/shared/models.py
+# Cognitive Decision Architecture - Shared Governance Models & Mock Registries
+
+import uuid
+from typing import Dict, Any, Optional, List, Literal
+from pydantic import BaseModel, Field
+
+VerdictType = Literal["PERMIT", "REMEDIATE", "ESCALATE", "BLOCK", "INDETERMINATE"]
+
 
 class Intent(BaseModel):
-    """Action proposed by the AI Agent."""
-    model_config = ConfigDict(frozen=True)
-    id: UUID = Field(default_factory=uuid4)
-    entity_id: str = Field(...)
-    agent_id: str = Field(...)
-    action: str = Field(...)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    entity_id: str
+    agent_id: str
+    action: str
     params: Dict[str, Any] = Field(default_factory=dict)
-    human_signature: Optional[str] = Field(None)
-    # The agent might try to send a context, but we will ignore it 
-    # and fetch our own in the Kernel for real auditing.
+    principal_authority_id: Optional[str] = None
+    regime_context: Optional[str] = "FINRA_US"
+    jurisdiction: Optional[str] = "US"
+
+
+class EvaluatedCheck(BaseModel):
+    check_id: str
+    version_hash: str
+    status: Literal["PASSED", "FAILED", "WARNED"]
+    rationale: str
+
+
+class BypassedCheck(BaseModel):
+    check_id: str
+    bypass_reason: str
+
+
+class AttestedPath(BaseModel):
+    evaluated_checks: List[EvaluatedCheck] = Field(default_factory=list)
+    bypassed_checks: List[BypassedCheck] = Field(default_factory=list)
+    execution_graph_hash: str
+
 
 class AuditDecision(BaseModel):
-    """Decision made by the Kernel."""
-    intent_id: UUID
-    decision: str  # ALLOW, DENY, ESCALATE_TO_HUMAN
+    intent_id: str
+    verdict: VerdictType
     reason: str
+    principal_authority_id: str
+    regime_context: str
+    jurisdiction: str
+    stochastic_drift_index: float
+    attested_path: Optional[AttestedPath] = None
     paseto_token: Optional[str] = None
     requires_human_signature: bool = False
 
-# --- TRUSTED SOURCE OF TRUTH (Mock Database) ---
-MOCK_USER_DB = {
-    "user-001": {"balance": 1200.0, "role": "vip", "verified": True},
-    "user-99": {"balance": 100.0, "role": "standard", "verified": True}
+
+# Trusted Governance Registries
+MOCK_USER_DB: Dict[str, Dict[str, Any]] = {
+    "usr_001": {
+        "name": "Alice Corp Admin",
+        "role": "treasury_operator",
+        "verified": True,
+        "allowed_actions": ["transfer_funds", "execute_trade", "update_policy"]
+    },
+    "usr_002": {
+        "name": "Bob Restricted User",
+        "role": "read_only",
+        "verified": True,
+        "allowed_actions": ["view_balance"]
+    }
 }
 
-# --- BUSINESS POLICIES (Deterministic Rules) ---
-MOCK_POLICIES = {
+MOCK_POLICIES: Dict[str, Dict[str, Any]] = {
     "transfer_funds": {
-        "auto_approve_limit": 500.0, # Under this, AI can do it alone
-        "max_limit": 2000.0,         # Absolute max
-        "require_human_above": 500.0 # Above this, we need a human
+        "auto_approve_limit": 500.0,
+        "remediate_limit": 1000.0,
+        "escalate_limit": 5000.0,
+        "max_limit": 10000.0,
+        "allowed_jurisdictions": ["US", "EU", "CL"]
+    },
+    "execute_trade": {
+        "auto_approve_limit": 1000.0,
+        "remediate_limit": 2000.0,
+        "escalate_limit": 10000.0,
+        "max_limit": 50000.0,
+        "allowed_jurisdictions": ["US"]
     }
 }

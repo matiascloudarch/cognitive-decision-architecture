@@ -1,47 +1,98 @@
-import requests
-import json
 import os
+import json
+import requests
 
-# URL of the authorization endpoint (Deterministic Policy Kernel / PEP)
 AUTHORIZE_URL = os.getenv("KERNEL_URL", "http://127.0.0.1:8000/authorize")
 
-def simulate_hallucination():
-    """
-    Simulates a scenario where an LLM agent attempts an out-of-policy action.
-    Must result in a DENY or REQUIRES_HUMAN_REVIEW.
-    """
-    print(f"\n--- LLM Agent Hallucination Simulation ---")
-    print(f"Attempting to request an excessive transfer ($5000) without HITL Attestation.\n")
 
-    # Simulation of an excessive amount request without HITL Attestation
-    intent_data = {
-        "entity_id": "user-001",
-        "agent_id": "hallucinating-llm-agent",
-        "action": "transfer_funds",
-        "params": {
-            "amount": 5000  # Excessive amount to force DENY or REQUIRES_HUMAN_REVIEW
-        }
-    }
+def run_simulation(title: str, payload: dict, human_signature: str = None):
+    print(f"\n--- Scenario: {title} ---")
+    url = AUTHORIZE_URL
+    if human_signature:
+        url += f"?human_signature={human_signature}"
 
     try:
-        response = requests.post(AUTHORIZE_URL, json=intent_data)
-        print(f"Respuesta del Deterministic Policy Kernel (PEP) [{response.status_code}]:")
-        response_json = response.json()
-        print(json.dumps(response_json, indent=2))
-
-        if response.status_code == 400 and "Maximum limit exceeded" in response_json.get("detail", ""):
-            print("\n✅ The Deterministic Policy Kernel (PEP) correctly blocked the intent (Fail-Closed).")
-            print("   The transfer exceeded the maximum policy limit.")
-        elif response_json.get("decision") == "REQUIRES_HUMAN_REVIEW":
-            print("\n⚠️ The Deterministic Policy Kernel (PEP) escalated the intent for HITL Attestation.")
-            print("   The transfer required human review and no attestation was provided.")
-        else:
-            print("\n❌ Unexpected behavior from the Deterministic Policy Kernel (PEP).")
-
+        response = requests.post(url, json=payload)
+        print(f"Kernel Response Status [{response.status_code}]:")
+        res_json = response.json()
+        print(json.dumps(res_json, indent=2))
+        return res_json
     except requests.exceptions.ConnectionError:
-        print(f"\n❌ Connection error: Ensure the Deterministic Policy Kernel (PEP) is running at {AUTHORIZE_URL}")
-    except Exception as e:
-        print(f"\n❌ An unexpected error occurred: {e}")
+        print(f"❌ Connection error: Ensure CDA Kernel is running at {AUTHORIZE_URL}")
+        return None
+
+
+def main():
+    print("==========================================================")
+    print("CDA Kernel & Attested Evaluation Path Simulation Engine")
+    print("==========================================================")
+
+    # 1. PERMIT Scenario
+    run_simulation(
+        "1. Standard Within-Policy Intent (Auto-Approved PERMIT)",
+        {
+            "entity_id": "user-001",
+            "agent_id": "llm-agent-01",
+            "action": "transfer_funds",
+            "params": {"amount": 250},
+            "regime_context": "FINRA_US",
+            "jurisdiction": "US"
+        }
+    )
+
+    # 2. REMEDIATE Scenario
+    run_simulation(
+        "2. Mild Out-of-Policy Intent (Auto-Capped REMEDIATE)",
+        {
+            "entity_id": "user-001",
+            "agent_id": "llm-agent-02",
+            "action": "transfer_funds",
+            "params": {"amount": 750},
+            "regime_context": "EU_AI_ACT_HIGH_RISK",
+            "jurisdiction": "DE"
+        }
+    )
+
+    # 3. ESCALATE Scenario
+    run_simulation(
+        "3. High-Risk Intent without Signature (HITL ESCALATE)",
+        {
+            "entity_id": "user-001",
+            "agent_id": "llm-agent-03",
+            "action": "transfer_funds",
+            "params": {"amount": 1500},
+            "regime_context": "ISO_42001",
+            "jurisdiction": "NG"
+        }
+    )
+
+    # 4. ESCALATE + Human Signature Scenario
+    run_simulation(
+        "4. High-Risk Intent WITH Human Attestation (Approved PERMIT)",
+        {
+            "entity_id": "user-001",
+            "agent_id": "llm-agent-03",
+            "action": "transfer_funds",
+            "params": {"amount": 1500},
+            "regime_context": "ISO_42001",
+            "jurisdiction": "NG"
+        },
+        human_signature="Matias-S"
+    )
+
+    # 5. BLOCK Scenario
+    run_simulation(
+        "5. Critical Boundary Violation (Fail-Closed BLOCK)",
+        {
+            "entity_id": "user-001",
+            "agent_id": "hallucinating-llm-agent",
+            "action": "transfer_funds",
+            "params": {"amount": 99999},
+            "regime_context": "ICAO_ANNEX_9",
+            "jurisdiction": "AR"
+        }
+    )
+
 
 if __name__ == "__main__":
-    simulate_hallucination()
+    main()

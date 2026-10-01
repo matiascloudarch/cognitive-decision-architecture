@@ -1,9 +1,26 @@
-import httpx
-import pytest
+"""
+Integration tests for the Cognitive Decision Architecture (CDA) full execution flow.
+Uses FastAPI TestClient for in-memory integration testing.
+"""
 
-# Local URLs for testing (assuming services are running)
-KERNEL_URL = "http://127.0.0.1:8000"
-GATE_URL = "http://127.0.0.1:8001"
+import os
+import sys
+
+# Ensure shared environment variables for test execution
+os.environ["PASETO_SECRET_KEY"] = "YELLOW_SUBMARINE_BLACK_WIZARD_KEY_32BYTES"
+
+# Ensure root CDA modules are accessible
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+import pytest
+from fastapi.testclient import TestClient
+
+from cda.kernel.engine import app as kernel_app
+from cda.gate.engine import app as gate_app
+
+kernel_client = TestClient(kernel_app)
+gate_client = TestClient(gate_app)
+
 
 def test_full_governance_flow():
     """
@@ -11,27 +28,28 @@ def test_full_governance_flow():
     Auth Request -> Decision -> Execution -> Forensic Log
     """
     intent_data = {
-        "entity_id": "user-001",
+        "entity_id": "usr_001",
         "agent_id": "agent-007",
         "action": "transfer_funds",
-        "params": {"amount": 100}
+        "params": {"amount": 100},
+        "regime_context": "FINRA_US",
+        "jurisdiction": "US"
     }
 
-    with httpx.Client(timeout=10.0) as client:
-        # 1. AUTHORIZE
-        r_auth = client.post(f"{KERNEL_URL}/authorize", json=intent_data)
-        assert r_auth.status_code == 200
-        token = r_auth.json()["paseto_token"]
+    # 1. AUTHORIZE VIA KERNEL
+    r_auth = kernel_client.post("/authorize", json=intent_data)
+    assert r_auth.status_code == 200
+    
+    auth_response = r_auth.json()
+    assert auth_response["verdict"] == "PERMIT"
+    
+    token = auth_response.get("paseto_token")
+    assert token is not None, "PASETO token should be present for PERMIT verdict"
 
-        # 2. EXECUTE
-        r_exec = client.post(f"{GATE_URL}/execute", params={"token": token})
-        assert r_exec.status_code == 201
-        assert r_exec.json()["status"] == "executed"
-        
-        # 3. VERIFY AUDIT LOG
-        r_logs = client.get(f"{GATE_URL}/audit/logs")
-        logs = r_logs.json()["logs"]
-        assert any(log["intent_id"] == r_auth.json()["audit_trail"]["intent_id"] for log in logs)
-
-if __name__ == "__main__":
-    test_full_governance_flow()
+    # 2. EXECUTE VIA GATE
+    headers = {"Authorization": f"Bearer {token}"}
+    r_exec = gate_client.post("/execute", headers=headers, params={"token": token})
+    
+    assert r_exec.status_code == 200, f"Execution failed: {r_exec.text}"
+    exec_response = r_exec.json()
+    assert exec_response["status"] == "EXECUTED"

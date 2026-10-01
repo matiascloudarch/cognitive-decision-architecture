@@ -1,62 +1,86 @@
 import pytest
-from cda.kernel.engine import KERNEL_KEY
-from cda.shared.models import Intent, MOCK_USER_DB
-
-# We test the logic via the app's internal functions or simulated requests
 from fastapi.testclient import TestClient
 from cda.kernel.engine import app
 
 client = TestClient(app)
 
-def test_auto_approval_logic():
-    """Tests that amounts under the limit are approved automatically."""
+
+def test_permit_verdict():
     payload = {
-        "entity_id": "user-001",
+        "entity_id": "usr_001",
         "agent_id": "test-agent",
         "action": "transfer_funds",
-        "params": {"amount": 100}
+        "params": {"amount": 100},
+        "regime_context": "FINRA_US",
+        "jurisdiction": "US",
     }
     response = client.post("/authorize", json=payload)
     assert response.status_code == 200
-    assert response.json()["decision"] == "ALLOW"
-    assert "paseto_token" in response.json()
+    data = response.json()
+    assert data["verdict"] == "PERMIT"
+    assert data["paseto_token"] is not None
 
-def test_human_escalation_logic():
-    """Tests that high amounts trigger a REQUIRES_HUMAN_REVIEW status."""
+
+def test_remediate_verdict():
+    # Amount 750 is above auto_approve_limit (500) and below escalate_limit (1000)
     payload = {
-        "entity_id": "user-001",
+        "entity_id": "usr_001",
         "agent_id": "test-agent",
         "action": "transfer_funds",
-        "params": {"amount": 900}
+        "params": {"amount": 750},
+        "regime_context": "FINRA_US",
+        "jurisdiction": "US",
     }
     response = client.post("/authorize", json=payload)
     assert response.status_code == 200
-    assert response.json()["decision"] == "REQUIRES_HUMAN_REVIEW"
+    data = response.json()
+    assert data["verdict"] == "REMEDIATE"
+    assert data["paseto_token"] is not None
 
-def test_strict_policy_enforcement():
-    """Tests that the maximum limit is enforced."""
+
+def test_escalate_verdict():
     payload = {
-        "entity_id": "user-001",
+        "entity_id": "usr_001",
         "agent_id": "test-agent",
         "action": "transfer_funds",
-        "params": {"amount": 2100}
+        "params": {"amount": 1500},
+        "regime_context": "FINRA_US",
+        "jurisdiction": "US",
     }
     response = client.post("/authorize", json=payload)
-    assert response.status_code == 400
-    assert "Maximum limit exceeded" in response.json()["detail"]
+    assert response.status_code == 200
+    data = response.json()
+    assert data["verdict"] == "ESCALATE"
 
 
-
-def test_human_signature_approval():
-    """Tests that providing a human signature unlocks the authorization."""
+def test_escalate_with_human_signature():
     payload = {
-        "entity_id": "user-001",
+        "entity_id": "usr_001",
         "agent_id": "test-agent",
         "action": "transfer_funds",
-        "params": {"amount": 900}
+        "params": {"amount": 1500},
+        "regime_context": "FINRA_US",
+        "jurisdiction": "US",
     }
-    # Resubmitting with human signature
-    response = client.post("/authorize?human_signature=Matias-S", json=payload)
+    response = client.post(
+        "/authorize?human_signature=Matias-S", json=payload
+    )
     assert response.status_code == 200
-    assert response.json()["decision"] == "ALLOW"
-    assert response.json()["audit_trail"]["human_auditor"] == "Matias-S"
+    data = response.json()
+    assert data["verdict"] == "PERMIT"
+
+
+def test_block_verdict():
+    payload = {
+        "entity_id": "usr_001",
+        "agent_id": "test-agent",
+        "action": "transfer_funds",
+        "params": {"amount": 15000},
+        "regime_context": "FINRA_US",
+        "jurisdiction": "US",
+    }
+    response = client.post("/authorize", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["verdict"] == "BLOCK"
+    assert data.get("paseto_token") is None

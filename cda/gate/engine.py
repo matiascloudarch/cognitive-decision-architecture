@@ -1,49 +1,65 @@
 import os
 import json
 import sqlite3
-import logging
-import hashlib
-from datetime import datetime, timezone
-from typing import Dict, Any, List
-from fastapi import FastAPI, HTTPException, status, Query
-from pyseto import Key, Paseto
+from typing import Any, Dict, List, Optional
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+import pyseto
+from pyseto import Key
 from dotenv import load_dotenv
-from cda.shared.models import MOCK_POLICIES
-
 
 load_dotenv()
-logger = logging.getLogger("cda-gate")
-app = FastAPI(title="CDA Execution Gate", version="16.0.0")
 
+app = FastAPI(
+    title="Cognitive Decision Architecture - Enforcement Gate",
+    version="1.0.0",
+)
 
-def get_policy_version_hash() -> str:
-    """Generates a hash of the current rules to ensure audit integrity."""
-    policy_string = json.dumps(MOCK_POLICIES, sort_keys=True)
-    return hashlib.sha256(policy_string.encode()).hexdigest()[:12]
-
-
-SECRET_KEY_RAW = os.getenv("CDA_SECRET_KEY", "internal_development_secret_key_fixed_32_chars")
-GATE_KEY = Key.new(version=4, purpose="local", key=SECRET_KEY_RAW.encode())
 DB_PATH = "cda_gate.db"
+
+# Ensure a fixed 32-byte secret key matching Kernel definition perfectly
+SECRET_HEX = os.getenv(
+    "CDA_SECRET_HEX", 
+    "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"
+)
+PASSERBY_SECRET_KEY = bytes.fromhex(SECRET_HEX)
+
+
+def get_db_connection() -> sqlite3.Connection:
+    """
+    Creates a database connection with busy timeout and WAL mode enabled
+    to prevent database locking during concurrent operations.
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    return conn
 
 
 def init_db() -> None:
-    """Initializes the SQLite database for storing the forensic audit trail."""
-    conn = sqlite3.connect(DB_PATH)
+    """Initialize SQLite database for forensic audit logs."""
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS forensic_audit_trail (
             intent_id TEXT PRIMARY KEY,
-            agent_id TEXT,
-            action TEXT,
+            agent_id TEXT NOT NULL,
+            action TEXT NOT NULL,
             amount REAL,
-            approval_type TEXT,
+            verdict TEXT NOT NULL,
+            principal_authority_id TEXT NOT NULL,
+            regime_context TEXT NOT NULL,
+            jurisdiction TEXT NOT NULL,
+            approval_type TEXT NOT NULL,
             human_auditor TEXT,
-            policy_version TEXT,
-            executed_at TIMESTAMP,
-            receipt_hash TEXT
+            policy_version TEXT NOT NULL,
+            execution_graph_hash TEXT NOT NULL,
+            executed_at TEXT NOT NULL,
+            receipt_hash TEXT NOT NULL
         )
-    """)
+    """
+    )
     conn.commit()
     conn.close()
 
@@ -51,69 +67,126 @@ def init_db() -> None:
 init_db()
 
 
-@app.post("/execute", status_code=status.HTTP_201_CREATED)
-async def execute(token: str = Query(...)) -> Dict[str, Any]:
-    """Validates the PASETO attestation token and logs execution into the forensic ledger."""
+class AuditLogResponse(BaseModel):
+    total_records: int
+    logs: List[Dict[str, Any]]
+
+
+@app.post("/execute")
+def execute_action(token: str) -> Dict[str, Any]:
+    """Verify PASETO v4 token and execute the authorized decision."""
     try:
-        decoded = Paseto.new().decode(GATE_KEY, token)
+        key = Key.new(version=4, purpose="local", key=PASSERBY_SECRET_KEY)
+        decoded_paseto = pyseto.decode(key, token)
+        
+        payload_raw = decoded_paseto.payload
+        if isinstance(payload_raw, bytes):
+            payload = json.loads(payload_raw.decode("utf-8"))
+        elif isinstance(payload_raw, dict):
+            payload = payload_raw
+        else:
+            payload = json.loads(str(payload_raw))
 
-        # Enhanced token footer validation
-        if not decoded.footer.decode().startswith("cda-v16"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid token footer"
-            )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid, expired, or tampered PASETO token: {str(exc)}",
+        )
 
-        payload = json.loads(decoded.payload)
+    intent_id = payload.get("intent_id")
+    agent_id = payload.get("agent_id")
+    action = payload.get("action")
+    params = payload.get("params", {})
+    amount = params.get("amount", 0.0)
+    verdict = payload.get("verdict")
+    principal_authority_id = payload.get("principal_authority_id")
+    regime_context = payload.get("regime_context")
+    jurisdiction = payload.get("jurisdiction")
+    approval_type = payload.get("approval_type")
+    human_auditor = payload.get("human_auditor")
+    policy_version = payload.get("policy_version")
+    execution_graph_hash = payload.get("execution_graph_hash")
+    issued_at = payload.get("issued_at")
+    receipt_hash = payload.get("receipt_hash")
 
-        # Validate policy version
-        if payload.get("policy_version") != get_policy_version_hash():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Policy version mismatch"
-            )
+    if verdict not in ["PERMIT", "REMEDIATE"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Execution blocked for verdict: {verdict}",
+        )
 
-        # Validate human signature if required
-        if payload.get("approval_type") == "human_verified" and not payload.get("human_auditor"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Missing human auditor signature"
-            )
-
-        execution_time = datetime.now(timezone.utc).isoformat()
-        receipt_hash = hashlib.sha256(f"{payload['intent_id']}-{execution_time}".encode()).hexdigest()
-
-        conn = sqlite3.connect(DB_PATH)
+    try:
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO forensic_audit_trail VALUES (?,?,?,?,?,?,?,?,?)",
+            """
+            INSERT INTO forensic_audit_trail (
+                intent_id, agent_id, action, amount, verdict,
+                principal_authority_id, regime_context, jurisdiction,
+                approval_type, human_auditor, policy_version,
+                execution_graph_hash, executed_at, receipt_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
             (
-                payload["intent_id"],
-                payload["agent_id"],
-                payload["action"],
-                payload["amount"],
-                payload["approval_type"],
-                payload["human_auditor"],
-                payload["policy_version"],
-                execution_time,
+                intent_id,
+                agent_id,
+                action,
+                amount,
+                verdict,
+                principal_authority_id,
+                regime_context,
+                jurisdiction,
+                approval_type,
+                human_auditor,
+                policy_version,
+                execution_graph_hash,
+                issued_at,
                 receipt_hash,
             ),
         )
         conn.commit()
         conn.close()
+    except sqlite3.IntegrityError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Database constraint error: {str(e)}. Ensure payload has all required fields.",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database execution error: {str(exc)}",
+        )
 
-        return {"status": "executed", "forensic_hash": receipt_hash}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {
+        "status": "EXECUTED",
+        "verdict": verdict,
+        "forensic_receipt_hash": receipt_hash,
+        "execution_graph_hash": execution_graph_hash,
+    }
 
 
-@app.get("/audit/logs")
-async def get_audit_logs() -> Dict[str, Any]:
-    """Exposes the forensic audit trail for inspection and verification."""
-    conn = sqlite3.connect(DB_PATH)
+@app.get("/audit/logs", response_model=AuditLogResponse)
+def get_audit_logs(limit: int = 50) -> AuditLogResponse:
+    """Retrieve immutable forensic audit logs from the storage engine."""
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forensic_audit_trail ORDER BY executed_at DESC")
-    logs = [dict(row) for row in cursor.fetchall()]
+
+    cursor.execute(
+        """
+        SELECT intent_id, agent_id, action, amount, verdict,
+               principal_authority_id, regime_context, jurisdiction,
+               approval_type, human_auditor, policy_version,
+               execution_graph_hash, executed_at, receipt_hash
+        FROM forensic_audit_trail
+        ORDER BY executed_at DESC
+        LIMIT ?
+    """,
+        (limit,),
+    )
+
+    rows = cursor.fetchall()
     conn.close()
-    return {"total_records": len(logs), "logs": logs}
+
+    logs = [dict(row) for row in rows]
+    return AuditLogResponse(total_records=len(logs), logs=logs)
