@@ -27,6 +27,20 @@ services:
       - CDA_SECRET_KEY=internal_development_secret_key_fixed_32_chars
     command: python3 -m uvicorn cda.gate.engine:app --host 0.0.0.0 --port 8001 --reload
 
+  dashboard:
+    build: .
+    container_name: cda-dashboard
+    ports:
+      - "8002:8002"
+    volumes:
+      - .:/app
+    networks:
+      - cda-network
+    environment:
+      - PYTHONPATH=/app
+    # Standard HTTP server serving the cda directory
+    command: python3 -m http.server 8002 --bind 0.0.0.0 --directory /app/cda
+
 networks:
   cda-network:
     driver: bridge
