@@ -1,0 +1,527 @@
+{
+  "schema_version": "1.1.0",
+  "submission_id": "cda-stage0-001",
+  "status": "proposed",
+  "title": "Deterministic Cryptographic Enforcement and Contextual Indeterminacy via CDA 2.0 Kernel",
+  "stage": "stage_0",
+  "stage_details": {
+    "regulated_rules": [
+      {
+        "id": "rule-uc4-schema110",
+        "source_url": "https://github.com/matiascloudarch/cognitive-decision-architecture",
+        "version": "1.1.0",
+        "applicability": "applicable",
+        "semantic_owner": "Matias Salgado"
+      }
+    ],
+    "campaign": null,
+    "recovery": null
+  },
+  "attribution": {
+    "submitter": "Matias Salgado",
+    "semantic_owner": "Matias Salgado",
+    "contact": "matiascloudarch@gmail.com",
+    "source_references": [
+      {
+        "id": "cda-repo",
+        "url": "https://github.com/matiascloudarch/cognitive-decision-architecture",
+        "version": "0.1.3",
+        "owner": "Matias Salgado"
+      }
+    ]
+  },
+  "objective": {
+    "question": "Can the CDA 2.0 Policy Kernel enforce two-axis cryptographic verification (PASETO v4) and prevent unauthorized actions or TOCTOU drift while gracefully handling context opacity with INDETERMINATE fail-closed responses?",
+    "hypothesis": "A two-axis fail-closed Policy Kernel will enforce atomic check-to-act execution, block tampered or expired tokens, remediate parameter bounds deterministically, and default to BLOCK/HOLD on stale or unmapped regime contexts.",
+    "controlled_change": "Unenforced baseline execution vs CDA 2.0 Two-Axis PASETO v4 Kernel enforcement.",
+    "excluded_conclusions": [
+      "Mapping fidelity alone does not establish legal compliance or multi-party regulatory enforceability.",
+      "Imported synthetic fixture events do not establish live cloud production deployment verification."
+    ],
+    "success_metrics": [
+      {
+        "id": "metric-1",
+        "definition": "Accuracy rate of Axis 1 action verdicts and Axis 2 evidence rejection classifications",
+        "unit": "ratio",
+        "denominator": "Total synthetic test vectors evaluated"
+      },
+      {
+        "id": "metric-2",
+        "definition": "Count of successfully blocked TOCTOU context drifts at the atomic check-to-act execution boundary",
+        "unit": "count",
+        "denominator": "Total injected execution drift attempts"
+      }
+    ]
+  },
+  "topology": {
+    "boundary": "single_organization",
+    "environment": "simulated",
+    "organizations": [
+      {
+        "id": "org-a",
+        "label": "Financial Service Provider (CDA Host Platform)"
+      }
+    ],
+    "agents": [
+      {
+        "id": "agent-007",
+        "organization_id": "org-a",
+        "role": "Autonomous Agentic Worker"
+      }
+    ],
+    "delegations": [],
+    "initial_state": {
+      "assets": [
+        {
+          "name": "account_ledger"
+        }
+      ],
+      "policies": [
+        {
+          "name": "cda_policy_v2_1"
+        }
+      ],
+      "context": {
+        "regime": "LATAM_FINANCIAL_REGL_v1",
+        "auto_approve_limit": 500,
+        "max_remediation_limit": 1000
+      }
+    }
+  },
+  "execution": {
+    "mode": "deterministic_fixture",
+    "provider": "none",
+    "credential_source": "runner_local_only",
+    "repetitions": 1,
+    "seed": 42,
+    "clock": "logical",
+    "timeout_seconds": 10,
+    "budget": {
+      "max_provider_calls": 0,
+      "max_cost": 0,
+      "currency": "USD",
+      "payer": "runner"
+    },
+    "isolation": {
+      "network": "off",
+      "external_side_effects": false,
+      "allow_real_payments": false
+    },
+    "profile": "cda-kernel-execution-v1",
+    "required_capabilities": [
+      "input-schema/1",
+      "mapping/1",
+      "assertions/1",
+      "scenario-time/1",
+      "fixture-reference/1"
+    ]
+  },
+  "adapters": [
+    {
+      "id": "adapter-cda-kernel",
+      "version": "0.1.3",
+      "source_ref_ids": [
+        "cda-repo"
+      ],
+      "semantic_owner": "Matias Salgado",
+      "adapter_author": "Matias Salgado",
+      "claim": "Two-Axis Policy Envelope and Verification produced by CDA 2.0 Kernel",
+      "implementation": {
+        "kind": "declarative",
+        "reviewed_plugin_id": null
+      },
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "axis_1_verdict": {
+            "type": "string",
+            "enum": [
+              "ALLOW",
+              "REMEDIATE",
+              "REQUIRES_HUMAN_REVIEW",
+              "DENY",
+              "INDETERMINATE"
+            ]
+          },
+          "axis_2_evidence": {
+            "type": "string",
+            "enum": [
+              "PAYLOAD_VALID",
+              "PAYLOAD_TAMPERING_DETECTED",
+              "TOCTOU_STALE_CONTEXT_DETECTED",
+              "EXPIRED_LEASE_TOKEN",
+              "UNMAPPED_REGIME_CONTEXT"
+            ]
+          },
+          "fallback_action": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "BLOCK",
+              "HOLD"
+            ]
+          }
+        },
+        "required": [
+          "axis_1_verdict",
+          "axis_2_evidence"
+        ]
+      },
+      "field_mappings": [
+        {
+          "source_pointer": "/axis_1_verdict",
+          "target_pointer": "/adapters/adapter-cda-kernel/decision",
+          "operation": "enum_map",
+          "enum_map": {
+            "ALLOW": "allow",
+            "REMEDIATE": "remediate",
+            "REQUIRES_HUMAN_REVIEW": "review",
+            "DENY": "reject",
+            "INDETERMINATE": "indeterminate"
+          },
+          "on_missing": "indeterminate"
+        }
+      ],
+      "semantics": {
+        "meaning": "The deterministic two-axis authorization result R(I) evaluated against the frozen policy version and cryptographic PASETO v4 seal.",
+        "unknown_handling": "indeterminate",
+        "negative_case": "An unsealed, tampered, or expired PASETO v4 token envelope, or an unmapped operating regime (Fail-Closed).",
+        "forbidden_inferences": [
+          "Treating an ALLOW verdict as an executed action without atomic Gate Check-to-Act re-verification.",
+          "Conflating an Axis 1 business policy rejection with an Axis 2 cryptographic signature failure."
+        ]
+      },
+      "review": {
+        "technical_verification": {
+          "status": "verified",
+          "reviewer": "Matias Salgado",
+          "evidence_refs": [
+            "https://github.com/matiascloudarch/cognitive-decision-architecture/blob/main/INTEGRITY.md"
+          ]
+        },
+        "preparer_review": {
+          "status": "reviewed",
+          "reviewer": "Matias Salgado",
+          "note": "Stage 0 CDA baseline validation against 26 pytest suites and 5 ITU-T vectors."
+        },
+        "contributor_reviews": [
+          {
+            "reviewer": "Matias Salgado",
+            "source_ref_ids": [
+              "cda-repo"
+            ],
+            "status": "approved",
+            "evidence_refs": [
+              "https://github.com/matiascloudarch/cognitive-decision-architecture"
+            ],
+            "note": "Approved native CDA 2.0 semantics and test vector suite."
+          }
+        ],
+        "review_note": "Updated Schema 1.1.0 mapping aligned with CDA 2.0 Two-Axis architecture and ITU-T FG-TIDA synthetic vectors VEC-001 to VEC-005."
+      },
+      "checks": []
+    }
+  ],
+  "cases": [
+    {
+      "id": "case-001-permit",
+      "kind": "positive",
+      "description": "Valid intent within policy limits (amount: 100) generates an ALLOW verdict with a valid PASETO v4 token seal.",
+      "controlled_change": "baseline_valid_intent",
+      "source_records": [
+        {
+          "adapter_id": "adapter-cda-kernel",
+          "data": {
+            "axis_1_verdict": "ALLOW",
+            "axis_2_evidence": "PAYLOAD_VALID",
+            "fallback_action": "NONE"
+          },
+          "validation_expectation": "accepted"
+        }
+      ],
+      "events": [
+        {
+          "id": "evt-001",
+          "logical_time": 0,
+          "actor_id": "agent-007",
+          "type": "AUTHORIZE_INTENT",
+          "origin": "synthetic",
+          "payload": {
+            "action": "ASSET_TRANSFER",
+            "amount": 100
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "id": "positive-verdict-check",
+          "pointer": "/adapters/adapter-cda-kernel/decision",
+          "operator": "equals",
+          "expected": "allow",
+          "on_missing": "indeterminate",
+          "reason": "Intent amount (100) is within auto_approve_limit (500) and carries a valid PASETO v4 signature.",
+          "source_ref_id": "cda-repo"
+        }
+      ]
+    },
+    {
+      "id": "case-002-remediate",
+      "kind": "boundary",
+      "description": "Intent exceeding auto_approve_limit (amount: 900) triggers REMEDIATE, capping amount to 500 while preserving original intent payload hash.",
+      "controlled_change": "amount_exceeds_auto_limit",
+      "source_records": [
+        {
+          "adapter_id": "adapter-cda-kernel",
+          "data": {
+            "axis_1_verdict": "REMEDIATE",
+            "axis_2_evidence": "PAYLOAD_VALID",
+            "fallback_action": "NONE"
+          },
+          "validation_expectation": "accepted"
+        }
+      ],
+      "events": [
+        {
+          "id": "evt-002",
+          "logical_time": 1,
+          "actor_id": "agent-007",
+          "type": "AUTHORIZE_INTENT",
+          "origin": "synthetic",
+          "payload": {
+            "action": "ASSET_TRANSFER",
+            "amount": 900
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "id": "remediate-verdict-check",
+          "pointer": "/adapters/adapter-cda-kernel/decision",
+          "operator": "equals",
+          "expected": "remediate",
+          "on_missing": "indeterminate",
+          "reason": "Intent amount (900) exceeds auto limit (500) but is within max_remediation (1000). Parameter is capped deterministically.",
+          "source_ref_id": "cda-repo"
+        }
+      ]
+    },
+    {
+      "id": "case-003-unmapped-regime",
+      "kind": "rejection",
+      "description": "Intent submitted under an unmapped or opaque regime context returns INDETERMINATE with a mandatory BLOCK fallback.",
+      "controlled_change": "unmapped_regime_context",
+      "source_records": [
+        {
+          "adapter_id": "adapter-cda-kernel",
+          "data": {
+            "axis_1_verdict": "INDETERMINATE",
+            "axis_2_evidence": "UNMAPPED_REGIME_CONTEXT",
+            "fallback_action": "BLOCK"
+          },
+          "validation_expectation": "rejected"
+        }
+      ],
+      "events": [
+        {
+          "id": "evt-003",
+          "logical_time": 2,
+          "actor_id": "agent-007",
+          "type": "AUTHORIZE_INTENT",
+          "origin": "synthetic",
+          "payload": {
+            "action": "ASSET_TRANSFER",
+            "regime": "UNKNOWN"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "id": "indeterminate-fallback-check",
+          "pointer": "/adapters/adapter-cda-kernel/decision",
+          "operator": "equals",
+          "expected": "indeterminate",
+          "on_missing": "indeterminate",
+          "reason": "Regime context cannot be established. Fail-closed policy enforces INDETERMINATE with BLOCK fallback.",
+          "source_ref_id": "cda-repo"
+        }
+      ]
+    },
+    {
+      "id": "case-004-toctou-drift",
+      "kind": "rejection",
+      "description": "Material execution context freezes between authorization and actuation. Gate Check-to-Act re-verification detects TOCTOU drift and blocks execution.",
+      "controlled_change": "context_freeze_between_check_and_act",
+      "source_records": [
+        {
+          "adapter_id": "adapter-cda-kernel",
+          "data": {
+            "axis_1_verdict": "DENY",
+            "axis_2_evidence": "TOCTOU_STALE_CONTEXT_DETECTED",
+            "fallback_action": "BLOCK"
+          },
+          "validation_expectation": "rejected"
+        }
+      ],
+      "events": [
+        {
+          "id": "evt-004",
+          "logical_time": 3,
+          "actor_id": "agent-007",
+          "type": "EXECUTE_INTENT",
+          "origin": "synthetic",
+          "payload": {
+            "action": "ASSET_TRANSFER",
+            "token_id": "tok-toctou-001"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "id": "toctou-drift-block-check",
+          "pointer": "/adapters/adapter-cda-kernel/decision",
+          "operator": "equals",
+          "expected": "reject",
+          "on_missing": "indeterminate",
+          "reason": "Execution boundary re-check detected a freeze state change since authorization time, invalidating the decision basis.",
+          "source_ref_id": "cda-repo"
+        }
+      ]
+    },
+    {
+      "id": "case-005-expired-token",
+      "kind": "rejection",
+      "description": "PASETO v4 token presented to the Gate after the 60-second lease TTL has expired is rejected before business logic evaluation.",
+      "controlled_change": "expired_lease_ttl",
+      "source_records": [
+        {
+          "adapter_id": "adapter-cda-kernel",
+          "data": {
+            "axis_1_verdict": "DENY",
+            "axis_2_evidence": "EXPIRED_LEASE_TOKEN",
+            "fallback_action": "BLOCK"
+          },
+          "validation_expectation": "rejected"
+        }
+      ],
+      "events": [
+        {
+          "id": "evt-005",
+          "logical_time": 4,
+          "actor_id": "agent-007",
+          "type": "EXECUTE_INTENT",
+          "origin": "synthetic",
+          "payload": {
+            "action": "ASSET_TRANSFER",
+            "token_id": "tok-expired-001"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "id": "expired-token-block-check",
+          "pointer": "/adapters/adapter-cda-kernel/decision",
+          "operator": "equals",
+          "expected": "reject",
+          "on_missing": "indeterminate",
+          "reason": "PASETO token timestamp exceeds the strict 60s lease window, causing immediate Axis 2 evidence rejection.",
+          "source_ref_id": "cda-repo"
+        }
+      ]
+    }
+  ],
+  "reproducibility": {
+    "adapter_package_refs": [
+      "https://github.com/matiascloudarch/cognitive-decision-architecture/blob/main/INTEGRITY.md"
+    ],
+    "fixture_hashes": {
+      "synthetic_vectors.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "dependency_lock_ref": "requirements.txt",
+    "expected_observability": [
+      "guard_decision",
+      "attempted_action",
+      "independently_observed_target_state"
+    ],
+    "model_version_capture": false,
+    "export_policy": "synthetic_only"
+  },
+  "data_policy": {
+    "classification": "synthetic",
+    "contains_secrets": false,
+    "retention_days_requested": 7,
+    "sharing": "author_only",
+    "asset_licenses": [
+      "Apache-2.0"
+    ],
+    "legal_claims": "none"
+  },
+  "foundation": {
+    "version": "experimental-foundation/1",
+    "experiment_id": "cda-exp-stage0-001",
+    "revision": "r1",
+    "parent_documents": [],
+    "evidence": [
+      {
+        "id": "ev-vec001",
+        "version": "1.0.0",
+        "case_id": "case-001-permit",
+        "kind": "synthetic_vector_result",
+        "origin": "synthetic_fixture",
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "content": {
+          "vector_id": "VEC-001-PERMIT",
+          "status": "PASSED"
+        }
+      },
+      {
+        "id": "ev-vec002",
+        "version": "1.0.0",
+        "case_id": "case-002-remediate",
+        "kind": "synthetic_vector_result",
+        "origin": "synthetic_fixture",
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "content": {
+          "vector_id": "VEC-002-REMEDIATE",
+          "status": "PASSED"
+        }
+      },
+      {
+        "id": "ev-vec003",
+        "version": "1.0.0",
+        "case_id": "case-003-unmapped-regime",
+        "kind": "synthetic_vector_result",
+        "origin": "synthetic_fixture",
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "content": {
+          "vector_id": "VEC-003-UNMAPPED-REGIME",
+          "status": "PASSED"
+        }
+      },
+      {
+        "id": "ev-vec004",
+        "version": "1.0.0",
+        "case_id": "case-004-toctou-drift",
+        "kind": "synthetic_vector_result",
+        "origin": "synthetic_fixture",
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "content": {
+          "vector_id": "VEC-004-TOCTOU-DRIFT",
+          "status": "PASSED"
+        }
+      },
+      {
+        "id": "ev-vec005",
+        "version": "1.0.0",
+        "case_id": "case-005-expired-token",
+        "kind": "synthetic_vector_result",
+        "origin": "synthetic_fixture",
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "content": {
+          "vector_id": "VEC-005-EXPIRED-TOKEN",
+          "status": "PASSED"
+        }
+      }
+    ]
+  }
+}

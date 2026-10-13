@@ -1,0 +1,122 @@
+{
+  "verifier_profile": {
+    "framework": "Cognitive Decision Architecture (CDA 2.0)",
+    "specification_alignment": "ITU-T FG-TIDA UC-4 / UC-21",
+    "authorship": {
+      "lead_architect": "Matias Salgado",
+      "normative_attributions": [
+        "Zhao Xinghua (Two-Axis Model)",
+        "Cyril Gorlla (5-State Categorization)",
+        "Ivan Palma (Fail-Closed TOCTOU Gate)"
+      ]
+    },
+    "token_format": "PASETO v4.local",
+    "ttl_seconds": 60,
+    "hash_algorithm": "SHA-256"
+  },
+  "test_vectors": [
+    {
+      "vector_id": "VEC-001-PERMIT",
+      "description": "Valid intent within policy limits resulting in PERMIT state.",
+      "input_intent": {
+        "agent_id": "agent-synthetic-01",
+        "regime_context": "FINRA_US",
+        "action_type": "PAYMENT_TRANSFER",
+        "payload": {
+          "amount": 250.0,
+          "currency": "USD"
+        }
+      },
+      "expected_output": {
+        "axis_1_state": "PERMIT",
+        "axis_2_status": "COMPLETE",
+        "token_issued": true,
+        "expected_gate_trace": "EXECUTED"
+      }
+    },
+    {
+      "vector_id": "VEC-002-REMEDIATE",
+      "description": "Intent exceeding limit triggering REMEDIATE state with payload parameter preservation.",
+      "input_intent": {
+        "agent_id": "agent-synthetic-02",
+        "regime_context": "FINRA_US",
+        "action_type": "PAYMENT_TRANSFER",
+        "payload": {
+          "amount": 800.0,
+          "currency": "USD"
+        }
+      },
+      "expected_output": {
+        "axis_1_state": "REMEDIATE",
+        "axis_2_status": "COMPLETE",
+        "original_amount": 800.0,
+        "adjusted_amount": 500.0,
+        "token_issued": true,
+        "expected_gate_trace": "REMEDIATED"
+      }
+    },
+    {
+      "vector_id": "VEC-003-UNMAPPED-REGIME",
+      "description": "Negative control for unregistered regime context resulting in INDETERMINATE and zero tokens.",
+      "input_intent": {
+        "agent_id": "agent-synthetic-03",
+        "regime_context": "UNKNOWN_REGIME_CONTEXT",
+        "action_type": "PAYMENT_TRANSFER",
+        "payload": {
+          "amount": 100.0,
+          "currency": "USD"
+        }
+      },
+      "expected_output": {
+        "axis_1_state": "INDETERMINATE",
+        "fallback_action": "BLOCK",
+        "axis_2_status": "INVALID_REGIME_CONTEXT",
+        "token_issued": false,
+        "expected_gate_trace": "BLOCKED"
+      }
+    },
+    {
+      "vector_id": "VEC-004-TOCTOU-DRIFT",
+      "description": "Negative control for execution state drift caught by Gate context-freeze check.",
+      "input_intent": {
+        "agent_id": "agent-synthetic-04",
+        "regime_context": "FINRA_US",
+        "action_type": "PAYMENT_TRANSFER",
+        "payload": {
+          "amount": 100.0,
+          "currency": "USD"
+        }
+      },
+      "execution_context": {
+        "global_context_freeze": "STATE_DRIFT_DETECTED"
+      },
+      "expected_output": {
+        "axis_1_state": "PERMIT",
+        "token_issued": true,
+        "expected_gate_trace": "BLOCKED",
+        "rejection_reason": "TOCTOU_CONTEXT_FREEZE_VIOLATION"
+      }
+    },
+    {
+      "vector_id": "VEC-005-EXPIRED-TOKEN",
+      "description": "Negative control for PASETO token presented after 60s TTL lease expiration.",
+      "input_intent": {
+        "agent_id": "agent-synthetic-05",
+        "regime_context": "FINRA_US",
+        "action_type": "PAYMENT_TRANSFER",
+        "payload": {
+          "amount": 100.0,
+          "currency": "USD"
+        }
+      },
+      "execution_context": {
+        "simulated_delay_seconds": 75
+      },
+      "expected_output": {
+        "token_issued": true,
+        "expected_gate_trace": "BLOCKED",
+        "rejection_reason": "EXPIRED_LEASE"
+      }
+    }
+  ]
+}

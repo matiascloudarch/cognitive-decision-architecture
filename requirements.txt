@@ -2,5 +2,8 @@ fastapi
 uvicorn
 pyseto
 python-dotenv
-streamlit
-
+ruff
+mypy
+pytest
+pytest-cov
+httpx

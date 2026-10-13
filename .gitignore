@@ -23,3 +23,6 @@ ENV/
 *.pem
 *.key
 .DS_Store
+
+# Coverage
+.coverage

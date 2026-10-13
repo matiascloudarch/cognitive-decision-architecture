@@ -1,49 +1,30 @@
-# Use a very small base image
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Matias Salgado
 
-FROM python:3.12-slim
-
-
-
-# Set working directory
+FROM python:3.9-slim
 
 WORKDIR /app
 
-
-
-# Install only essential system dependencies and clean up in the same layer
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-
-    netcat-openbsd \
-
-    gcc \
-
-    python3-dev \
-
-    && rm -rf /var/lib/apt/lists/*
-
-
-
-# Copy only requirements/pyproject first to leverage Docker cache
-
+# Copy dependency files
+COPY requirements.txt .
 COPY pyproject.toml .
 
-RUN pip install --no-cache-dir .
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-
-
-# Copy the rest of the application
-
+# Copy full application code
 COPY . .
 
+# Ensure execution permissions for audit and utility scripts
+RUN chmod +x ./cda/scripts/*.sh 2>/dev/null || true
 
+# Expose server port
+EXPOSE 8002
 
-# Install the package in editable mode for development
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV CDA_SECRET_HEX=707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f
 
-RUN pip install -e .
-
-
-
-# Command to run the engine
-
-CMD ["python3", "-m", "uvicorn", "cda.kernel.engine:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command to run the unified server
+CMD ["uvicorn", "cda.server:app", "--host", "0.0.0.0", "--port", "8002"]

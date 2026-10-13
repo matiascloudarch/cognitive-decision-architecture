@@ -1,268 +1,249 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Matias Salgado
+
 """
-Cognitive Decision Architecture (CDA) - Core Kernel Engine
-Provides policy evaluation, PASETO v4 token generation, and forensic ledger tracking.
+Cognitive Decision Architecture (CDA 2.0)
+Module: cda.kernel.engine
 """
 
-import os
-import uuid
 import datetime
-import hashlib
-import json
-from typing import Dict, Any, Optional, List
-from fastapi import FastAPI, Query, HTTPException
-from pydantic import BaseModel, Field
+import os
+from typing import Optional
+
 import pyseto
+from fastapi import FastAPI
 from pyseto import Key
 
-app = FastAPI(
-    title="Cognitive Decision Architecture - Kernel",
-    version="1.0.0",
-    description="Deterministic runtime control plane and forensic ledger."
+from cda.ledger.audit import GLOBAL_AUDIT_LEDGER
+from cda.shared.models import (
+    MOCK_POLICIES,
+    AgentIntent,
+    AuditDecision,
+    Axis1ActionVerdict,
+    Axis2EvaluationEvidence,
+    EvaluatedCheck,
+    RemediationDetails,
 )
 
-# Shared local symmetric key for PASETO v4 (32 bytes / 64 hex chars)
-# Matches exactly the Gate configuration
+app = FastAPI(
+    title="Cognitive Decision Architecture Kernel Engine",
+    version="2.0.0",
+    description="Deterministic Two-Axis policy evaluation engine minting PASETO v4 leases."
+)
+
 SECRET_HEX = os.getenv(
-    "CDA_SECRET_HEX", 
+    "CDA_SECRET_HEX",
     "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"
 )
 PASETO_KEY = Key.new(version=4, purpose="local", key=bytes.fromhex(SECRET_HEX))
 
-# Mock database records
-MOCK_USER_DB = {
-    "usr_001": {
-        "status": "ACTIVE",
-        "kyc_status": "VERIFIED",
-        "risk_score": 0.05,
-        "verified": True
+
+def mint_paseto_lease(
+    intent: AgentIntent,
+    axis_1: Axis1ActionVerdict,
+    axis_2: Axis2EvaluationEvidence,
+    ttl_seconds: int = 60
+) -> str:
+    """Mints a short-lived PASETO v4 token encoding the Two-Axis verdict."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    exp = now + datetime.timedelta(seconds=ttl_seconds)
+
+    payload = {
+        "intent_id": intent.intent_id,
+        "agent_id": intent.agent_id,
+        "entity_id": intent.entity_id,
+        "action": intent.action,
+        "params": axis_1.remediation_details.adjusted_payload if axis_1.remediation_details else intent.params,
+        "axis_1_action_verdict": axis_1.model_dump(),
+        "axis_2_evaluation_evidence": axis_2.model_dump(),
+        "iat": now.isoformat(),
+        "exp": exp.isoformat()
     }
-}
 
-MOCK_POLICIES = {
-    "FINRA_US": {
-        "auto_approve_limit": 500.0,
-        "remediate_limit": 1000.0,
-        "escalate_limit": 1000.0,
-        "max_limit": 10000.0
-    },
-    "ISO_42001": {
-        "auto_approve_limit": 500.0,
-        "remediate_limit": 1000.0,
-        "escalate_limit": 1000.0,
-        "max_limit": 10000.0
-    }
-}
-
-
-class AgentIntent(BaseModel):
-    entity_id: str = Field(..., json_schema_extra={"example": "usr_001"})
-    agent_id: str = Field(..., json_schema_extra={"example": "agent-007"})
-    action: str = Field(..., json_schema_extra={"example": "transfer_funds"})
-    params: Dict[str, Any] = Field(default_factory=dict)
-    regime_context: Optional[str] = Field("FINRA_US", json_schema_extra={"example": "FINRA_US"})
-    jurisdiction: Optional[str] = Field("US", json_schema_extra={"example": "US"})
-    principal_authority_id: Optional[str] = None
-
-
-class EvaluatedCheck(BaseModel):
-    check_id: str
-    version_hash: str
-    status: str
-    rationale: str
-
-
-class BypassedCheck(BaseModel):
-    check_id: str
-    rationale: str
-
-
-class AuditDecision(BaseModel):
-    verdict: str
-    paseto_token: Optional[str] = None
-    drift_index: float
-    principal_authority_id: str
-    regime_context: str
-    jurisdiction: str
-    evaluated_checks: List[EvaluatedCheck]
-    bypassed_checks: List[BypassedCheck]
-    decision_reason: str
-
-
-def compute_sha256(data: Any) -> str:
-    """Compute SHA-256 hash for deterministic audit trails."""
-    serialized = json.dumps(data, sort_keys=True)
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    token = pyseto.encode(PASETO_KEY, payload)
+    return token.decode("utf-8") if isinstance(token, bytes) else str(token)
 
 
 @app.post("/authorize", response_model=AuditDecision)
-def authorize_intent(
-    intent: AgentIntent,
-    human_signature: Optional[str] = Query(None)
-) -> AuditDecision:
+def authorize_intent(intent: AgentIntent, human_signature: Optional[str] = None) -> AuditDecision:
     """
-    Evaluates an agent intent against defined governance policy limits.
+    Evaluates an Agent Intent through Two-Axis Governance and mints a PASETO v4 lease.
     """
-    user_data = MOCK_USER_DB.get(intent.entity_id)
-    policy = MOCK_POLICIES.get(intent.regime_context, MOCK_POLICIES["FINRA_US"]).copy()
+    evaluated_checks: list[EvaluatedCheck] = []
+    regime = intent.regime_context or "FINRA_US"
 
-    # Fallback default policy hash
-    policy_hash = compute_sha256(policy)
-
-    if not user_data:
-        return AuditDecision(
-            verdict="BLOCK",
+    # 1. Axis 2 Context Freshness and Regime Mapping Check
+    if regime not in MOCK_POLICIES:
+        axis_1 = Axis1ActionVerdict(state="INDETERMINATE", fallback_action="BLOCK", remediation_details=None)
+        axis_2 = Axis2EvaluationEvidence(
+            execution_status="UNMAPPED_REGIME_CONTEXT",
+            checks_executed=["CHK-REGIME-01"],
+            failure_mode="INVALID_REGIME_CONTEXT"
+        )
+        decision = AuditDecision(
+            verdict="INDETERMINATE",
             paseto_token=None,
-            drift_index=1.0,
-            principal_authority_id=intent.principal_authority_id or "UNKNOWN",
-            regime_context=intent.regime_context or "UNKNOWN",
-            jurisdiction=intent.jurisdiction or "UNKNOWN",
+            stochastic_drift_index=1.0,
+            principal_authority_id="SYSTEM_FAILSAFE",
+            intent_id=intent.intent_id,
+            jurisdiction=intent.jurisdiction or "US",
+            regime_context=regime,
+            axis_1_action_verdict=axis_1,
+            axis_2_evaluation_evidence=axis_2,
             evaluated_checks=[
                 EvaluatedCheck(
-                    check_id="POL-ID-01",
-                    version_hash=policy_hash,
-                    status="FAILED",
-                    rationale="Entity ID not recognized in authority database"
+                    check_id="CHK-REGIME-01",
+                    rule_name="Regime Mapping Validation",
+                    passed=False,
+                    details=f"Regulatory regime '{regime}' is not registered in active policy database."
                 )
             ],
-            bypassed_checks=[],
-            decision_reason="Unknown entity_id provided"
+            decision_reason=f"Unmapped regulatory regime context: {regime}"
         )
+        GLOBAL_AUDIT_LEDGER.record_decision(
+            decision=decision,
+            agent_id=intent.agent_id,
+            original_params=intent.params
+        )
+        return decision
 
-    # Policy boundary enforce
-    if intent.action == "transfer_funds":
-        policy["auto_approve_limit"] = 500.0
-        policy["remediate_limit"] = 1000.0
-        policy["escalate_limit"] = 1000.0
-        policy["max_limit"] = 10000.0
-
+    policy = MOCK_POLICIES[regime]
     amount = float(intent.params.get("amount", 0.0))
-    principal_id = (
-        intent.principal_authority_id
-        or f"{intent.entity_id}->tenant_{intent.jurisdiction.lower()}->{intent.agent_id}"
-    )
-    regime = intent.regime_context or "FINRA_US"
-    jurisdiction = intent.jurisdiction or "US"
 
-    auto_limit = policy["auto_approve_limit"]
-    max_limit = policy["max_limit"]
-
-    denominator = max_limit - auto_limit if max_limit > auto_limit else 1.0
-    drift_index = round(min(1.0, max(0.0, (amount - auto_limit) / denominator)), 2)
-
-    evaluated_checks: List[EvaluatedCheck] = []
-    bypassed_checks: List[BypassedCheck] = []
-
-    evaluated_checks.append(
-        EvaluatedCheck(
-            check_id="POL-ID-01",
-            version_hash=policy_hash,
-            status="PASSED" if user_data.get("verified") else "FAILED",
-            rationale="User identity verified in secure registry"
-        )
-    )
-
-    verdict = "PERMIT"
-    decision_reason = "Intent matches policy guidelines"
-    adjusted_amount = amount
-
-    # Evaluation logic based on transaction limits
-    if amount > policy["max_limit"]:
-        verdict = "BLOCK"
-        decision_reason = f"Amount ${amount} exceeds maximum policy boundary of ${policy['max_limit']}"
+    # 2. Check Entity Sanction / Disallowed Jurisdiction
+    if intent.jurisdiction in policy.get("disallowed_jurisdictions", []):
         evaluated_checks.append(
             EvaluatedCheck(
-                check_id="POL-LIMIT-MAX",
-                version_hash=policy_hash,
-                status="FAILED",
-                rationale=decision_reason
+                check_id="CHK-JUR-01",
+                rule_name="Jurisdiction Sanction Check",
+                passed=False,
+                details=f"Jurisdiction '{intent.jurisdiction}' is disallowed under regime {regime}."
             )
         )
-    elif amount > policy["escalate_limit"]:
-        if human_signature:
-            verdict = "PERMIT"
-            decision_reason = f"Amount ${amount} approved via Human-in-the-Loop signature ({human_signature})"
-            evaluated_checks.append(
-                EvaluatedCheck(
-                    check_id="POL-HITL-01",
-                    version_hash=policy_hash,
-                    status="PASSED",
-                    rationale=decision_reason
-                )
+        axis_1 = Axis1ActionVerdict(state="BLOCK", fallback_action="BLOCK", remediation_details=None)
+        axis_2 = Axis2EvaluationEvidence(execution_status="COMPLETE", checks_executed=["CHK-JUR-01"], failure_mode=None)
+        decision = AuditDecision(
+            verdict="BLOCK",
+            paseto_token=None,
+            stochastic_drift_index=0.95,
+            principal_authority_id=intent.entity_id,
+            intent_id=intent.intent_id,
+            jurisdiction=intent.jurisdiction or "US",
+            regime_context=regime,
+            axis_1_action_verdict=axis_1,
+            axis_2_evaluation_evidence=axis_2,
+            evaluated_checks=evaluated_checks,
+            decision_reason=f"Action blocked: Jurisdiction {intent.jurisdiction} is sanctioned."
+        )
+        GLOBAL_AUDIT_LEDGER.record_decision(decision=decision, agent_id=intent.agent_id, original_params=intent.params)
+        return decision
+
+    # 3. Check Auto-Approve & Escalation Limits
+    auto_limit = policy.get("auto_approve_limit", 500.0)
+    escalation_limit = policy.get("escalation_threshold", 2000.0)
+
+    if amount <= auto_limit:
+        evaluated_checks.append(
+            EvaluatedCheck(
+                check_id="CHK-LIM-01",
+                rule_name="Operational Amount Limit",
+                passed=True,
+                details=f"Requested amount ${amount:.2f} is within auto-approval threshold of ${auto_limit:.2f}."
             )
-        else:
-            verdict = "ESCALATE"
-            decision_reason = f"Amount ${amount} requires Human-in-the-Loop authorization"
-            evaluated_checks.append(
-                EvaluatedCheck(
-                    check_id="POL-HITL-01",
-                    version_hash=policy_hash,
-                    status="WARNED",
-                    rationale=decision_reason
-                )
+        )
+        axis_1 = Axis1ActionVerdict(state="PERMIT", fallback_action=None, remediation_details=None)
+        axis_2 = Axis2EvaluationEvidence(
+            execution_status="COMPLETE", checks_executed=["CHK-LIM-01"], failure_mode=None
+        )
+        verdict = "PERMIT"
+        stochastic_drift = 0.05
+        decision_reason = "Intent approved under standard automated policy limit."
+
+    elif auto_limit < amount <= escalation_limit:
+        # Remediation required: Cap amount at auto_limit
+        evaluated_checks.append(
+            EvaluatedCheck(
+                check_id="CHK-LIM-02",
+                rule_name="Operational Amount Remediation Threshold",
+                passed=False,
+                details=f"Amount ${amount:.2f} exceeds auto-approval ${auto_limit:.2f}. Forcing auto-remediation."
             )
-    elif amount > policy["auto_approve_limit"] and amount <= policy["remediate_limit"]:
+        )
+        remediation = RemediationDetails(
+            rule_id="POL-REM-001",
+            original_payload=intent.params,
+            adjusted_payload={"amount": auto_limit},
+            justification=f"Amount capped from ${amount:.2f} to max auto-approval ${auto_limit:.2f}.",
+            remediation_authority="POL-REM-001"
+        )
+        axis_1 = Axis1ActionVerdict(state="REMEDIATE", fallback_action=None, remediation_details=remediation)
+        axis_2 = Axis2EvaluationEvidence(
+            execution_status="COMPLETE", checks_executed=["CHK-LIM-02"], failure_mode=None
+        )
         verdict = "REMEDIATE"
-        adjusted_amount = policy["auto_approve_limit"]
-        decision_reason = f"Amount ${amount} automatically capped to approved limit of ${adjusted_amount}"
-        evaluated_checks.append(
-            EvaluatedCheck(
-                check_id="POL-REMED-01",
-                version_hash=policy_hash,
-                status="PASSED",
-                rationale=decision_reason
-            )
-        )
-    else:
-        evaluated_checks.append(
-            EvaluatedCheck(
-                check_id="POL-LIMIT-AUTO",
-                version_hash=policy_hash,
-                status="PASSED",
-                rationale="Amount within automated execution boundary"
-            )
-        )
+        stochastic_drift = 0.40
+        decision_reason = f"Intent remediated: Amount capped to policy threshold of ${auto_limit:.2f}."
 
-    # Issue cryptographic token for executable verdicts
+    else:  # amount > escalation_limit
+        if human_signature:
+            evaluated_checks.append(
+                EvaluatedCheck(
+                    check_id="CHK-ESC-01",
+                    rule_name="Human Oversight Review",
+                    passed=True,
+                    details=f"Human override verified with signature: {human_signature}"
+                )
+            )
+            axis_1 = Axis1ActionVerdict(state="PERMIT", fallback_action=None, remediation_details=None)
+            axis_2 = Axis2EvaluationEvidence(
+                execution_status="COMPLETE", checks_executed=["CHK-ESC-01"], failure_mode=None
+            )
+            verdict = "PERMIT"
+            stochastic_drift = 0.15
+            decision_reason = f"High-value intent authorized via valid human operator signature: {human_signature}"
+        else:
+            evaluated_checks.append(
+                EvaluatedCheck(
+                    check_id="CHK-ESC-01",
+                    rule_name="Human Oversight Review",
+                    passed=False,
+                    details=(
+                        f"Amount ${amount:.2f} exceeds escalation threshold "
+                        f"${escalation_limit:.2f}. Human review required."
+                    )
+                )
+            )
+            axis_1 = Axis1ActionVerdict(state="ESCALATE", fallback_action="BLOCK", remediation_details=None)
+            axis_2 = Axis2EvaluationEvidence(
+                execution_status="COMPLETE", checks_executed=["CHK-ESC-01"], failure_mode=None
+            )
+            verdict = "ESCALATE"
+            stochastic_drift = 0.85
+            decision_reason = f"High-value intent escalated to human operator review queue (Amount: ${amount:.2f})."
+
+    # Mint PASETO token for executable verdicts
     paseto_token = None
     if verdict in ["PERMIT", "REMEDIATE"]:
-        now = datetime.datetime.now(datetime.timezone.utc)
-        intent_id = str(uuid.uuid4())
-        
-        # Include all mandatory fields for Gate's database
-        payload = {
-            "intent_id": intent_id,
-            "sub": intent.entity_id,
-            "agent_id": intent.agent_id,
-            "action": intent.action,
-            "params": {"amount": adjusted_amount},
-            "amount": adjusted_amount,
-            "verdict": verdict,
-            "principal_authority_id": principal_id,
-            "regime_context": regime,
-            "jurisdiction": jurisdiction,
-            "approval_type": "HITL" if human_signature else "AUTO",
-            "human_auditor": human_signature,
-            "policy_version": policy_hash,
-            "execution_graph_hash": policy_hash,
-            "issued_at": now.isoformat(),
-            "receipt_hash": compute_sha256({"id": intent_id, "verdict": verdict}),
-            "iat": now.isoformat(),
-            "exp": (now + datetime.timedelta(minutes=15)).isoformat()
-        }
-        
-        # Serialize payload to JSON bytes for PASETO v4 encoding
-        serialized_payload = json.dumps(payload).encode("utf-8")
-        token_bytes = pyseto.encode(PASETO_KEY, serialized_payload)
-        paseto_token = token_bytes.decode("utf-8")
+        paseto_token = mint_paseto_lease(intent=intent, axis_1=axis_1, axis_2=axis_2)
 
-    return AuditDecision(
-        verdict=verdict,
+    decision = AuditDecision(
+        verdict=verdict,  # type: ignore[arg-type]
         paseto_token=paseto_token,
-        drift_index=drift_index,
-        principal_authority_id=principal_id,
+        stochastic_drift_index=stochastic_drift,
+        principal_authority_id=intent.entity_id,
+        intent_id=intent.intent_id,
+        jurisdiction=intent.jurisdiction or "US",
         regime_context=regime,
-        jurisdiction=jurisdiction,
+        axis_1_action_verdict=axis_1,
+        axis_2_evaluation_evidence=axis_2,
         evaluated_checks=evaluated_checks,
-        bypassed_checks=bypassed_checks,
         decision_reason=decision_reason
     )
+
+    GLOBAL_AUDIT_LEDGER.record_decision(
+        decision=decision,
+        agent_id=intent.agent_id,
+        original_params=intent.params
+    )
+
+    return decision

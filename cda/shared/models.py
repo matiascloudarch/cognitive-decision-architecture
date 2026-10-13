@@ -1,84 +1,145 @@
-# cda/shared/models.py
-# Cognitive Decision Architecture - Shared Governance Models & Mock Registries
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Matias Salgado
+
+"""
+Cognitive Decision Architecture (CDA 2.0)
+Module: cda.shared.models
+"""
 
 import uuid
-from typing import Dict, Any, Optional, List, Literal
+from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, Field
 
-VerdictType = Literal["PERMIT", "REMEDIATE", "ESCALATE", "BLOCK", "INDETERMINATE"]
+# Defined Verdict Types for Axis 1
+VerdictType = Literal["PERMIT", "REMEDIATE", "ESCALATE", "INDETERMINATE", "BLOCK"]
+
+# Defined Execution Status Types for Axis 2
+ExecutionStatusType = Literal[
+    "COMPLETE",
+    "UNMAPPED_REGIME_CONTEXT",
+    "INVALID_REGIME_CONTEXT",
+    "INVALID_TOKEN",
+    "EXPIRED_LEASE",
+    "UNRESOLVED_DEPENDENCY_OR_STALE_CONTEXT",
+    "INTERNAL_EVALUATION_ERROR",
+]
 
 
-class Intent(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    entity_id: str
-    agent_id: str
-    action: str
-    params: Dict[str, Any] = Field(default_factory=dict)
+class RemediationDetails(BaseModel):
+    """Preserves original intent, remediated intent, and rule authority for REMEDIATE verdicts."""
+
+    rule_id: Optional[str] = None
+    original_payload: dict[str, Any] = Field(
+        default_factory=dict, description="Original input intent parameters before remediation"
+    )
+    adjusted_payload: dict[str, Any] = Field(
+        default_factory=dict, description="Adjusted intent parameters enforced by policy"
+    )
+    justification: Optional[str] = None
+    remediation_authority: Optional[str] = Field(
+        None, description="Policy rule ID forcing the remediation"
+    )
+
+
+class Axis1ActionVerdict(BaseModel):
+    """Axis 1: Decision on the requested operational action."""
+
+    state: VerdictType = Field(
+        ..., description="Action verdict state: PERMIT, REMEDIATE, ESCALATE, INDETERMINATE, BLOCK"
+    )
+    fallback_action: Optional[Literal["BLOCK"]] = Field(
+        None, description="Enforced fallback action when verdict is INDETERMINATE or BLOCK"
+    )
+    remediation_details: Optional[RemediationDetails] = Field(
+        None, description="Mandatory details preserved when state is REMEDIATE"
+    )
+
+
+class Axis2EvaluationEvidence(BaseModel):
+    """Axis 2: Attestation evidence regarding the completeness and validity of the evaluation itself."""
+
+    execution_status: ExecutionStatusType = Field(
+        ..., description="Status of the policy evaluation engine execution"
+    )
+    checks_executed: list[str] = Field(
+        default_factory=list, description="List of check IDs actually executed"
+    )
+    failure_mode: Optional[str] = Field(
+        None, description="Specific failure mode code (e.g., SF-003, INVALID_REGIME_CONTEXT)"
+    )
+
+
+class AgentIntent(BaseModel):
+    """Operational action request dispatched by an autonomous AI agent."""
+
+    intent_id: str = Field(default_factory=lambda: f"int_{uuid.uuid4().hex[:8]}")
+    entity_id: str = Field(..., json_schema_extra={"example": "usr_001"})
+    agent_id: str = Field(..., json_schema_extra={"example": "agent-007"})
+    action: str = Field(..., json_schema_extra={"example": "transfer_funds"})
+    params: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
     principal_authority_id: Optional[str] = None
-    regime_context: Optional[str] = "FINRA_US"
-    jurisdiction: Optional[str] = "US"
+    regime_context: Optional[str] = Field("FINRA_US", json_schema_extra={"example": "FINRA_US"})
+    jurisdiction: Optional[str] = Field("US", json_schema_extra={"example": "US"})
 
 
 class EvaluatedCheck(BaseModel):
+    """Granular rule execution record emitted during evaluation."""
+
     check_id: str
-    version_hash: str
-    status: Literal["PASSED", "FAILED", "WARNED"]
-    rationale: str
-
-
-class BypassedCheck(BaseModel):
-    check_id: str
-    bypass_reason: str
-
-
-class AttestedPath(BaseModel):
-    evaluated_checks: List[EvaluatedCheck] = Field(default_factory=list)
-    bypassed_checks: List[BypassedCheck] = Field(default_factory=list)
-    execution_graph_hash: str
+    rule_name: str
+    passed: bool
+    details: str
+    status: Optional[str] = None
+    rationale: Optional[str] = None
+    version_hash: Optional[str] = None
 
 
 class AuditDecision(BaseModel):
-    intent_id: str
+    """External API response contract summarizing the Kernel's audit decision."""
+
     verdict: VerdictType
-    reason: str
-    principal_authority_id: str
-    regime_context: str
-    jurisdiction: str
-    stochastic_drift_index: float
-    attested_path: Optional[AttestedPath] = None
     paseto_token: Optional[str] = None
-    requires_human_signature: bool = False
+    stochastic_drift_index: float
+    principal_authority_id: str
+    intent_id: str
+    jurisdiction: str
+    regime_context: Optional[str] = None
+    axis_1_action_verdict: Axis1ActionVerdict
+    axis_2_evaluation_evidence: Axis2EvaluationEvidence
+    evaluated_checks: list[EvaluatedCheck]
+    decision_reason: str
 
 
-# Trusted Governance Registries
-MOCK_USER_DB: Dict[str, Dict[str, Any]] = {
+class ExecutionTrace(BaseModel):
+    """Trace emitted by the Gate after enforcing an action execution."""
+
+    intent_id: str
+    final_state: Literal["EXECUTED", "BLOCKED", "REMEDIATED"]
+    axis_1_action_verdict: Axis1ActionVerdict
+    axis_2_evaluation_evidence: Axis2EvaluationEvidence
+    executed_payload: dict[str, Any] = Field(default_factory=dict)
+    enforcement_timestamp: str
+    decision_reason: str
+
+
+# Governance Mocks for Local Testing
+MOCK_USER_DB: dict[str, dict[str, Any]] = {
     "usr_001": {
         "name": "Alice Corp Admin",
-        "role": "treasury_operator",
-        "verified": True,
-        "allowed_actions": ["transfer_funds", "execute_trade", "update_policy"]
-    },
-    "usr_002": {
-        "name": "Bob Restricted User",
-        "role": "read_only",
-        "verified": True,
-        "allowed_actions": ["view_balance"]
+        "role": "TREASURY_OPERATOR",
+        "clearance_level": 3,
+        "active_delegations": ["agent-007"],
     }
 }
 
-MOCK_POLICIES: Dict[str, Dict[str, Any]] = {
-    "transfer_funds": {
+# Registered Governance Policies
+MOCK_POLICIES: dict[str, dict[str, Any]] = {
+    "FINRA_US": {
         "auto_approve_limit": 500.0,
-        "remediate_limit": 1000.0,
-        "escalate_limit": 5000.0,
-        "max_limit": 10000.0,
-        "allowed_jurisdictions": ["US", "EU", "CL"]
-    },
-    "execute_trade": {
-        "auto_approve_limit": 1000.0,
-        "remediate_limit": 2000.0,
-        "escalate_limit": 10000.0,
-        "max_limit": 50000.0,
-        "allowed_jurisdictions": ["US"]
+        "escalation_threshold": 2000.0,
+        "disallowed_jurisdictions": ["CU", "IR", "KP", "SY"],
+        "max_risk_score": 0.80,
     }
 }

@@ -1,86 +1,90 @@
-import pytest
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Matias Salgado
+
 from fastapi.testclient import TestClient
+
 from cda.kernel.engine import app
 
 client = TestClient(app)
 
 
-def test_permit_verdict():
-    payload = {
+def test_permit_within_limits() -> None:
+    intent = {
         "entity_id": "usr_001",
-        "agent_id": "test-agent",
+        "agent_id": "agent-007",
         "action": "transfer_funds",
-        "params": {"amount": 100},
+        "params": {"amount": 250.0},
         "regime_context": "FINRA_US",
         "jurisdiction": "US",
     }
-    response = client.post("/authorize", json=payload)
+    response = client.post("/authorize", json=intent)
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "PERMIT"
     assert data["paseto_token"] is not None
 
 
-def test_remediate_verdict():
-    # Amount 750 is above auto_approve_limit (500) and below escalate_limit (1000)
-    payload = {
+def test_remediate_over_auto_limit() -> None:
+    intent = {
         "entity_id": "usr_001",
-        "agent_id": "test-agent",
+        "agent_id": "agent-007",
         "action": "transfer_funds",
-        "params": {"amount": 750},
+        "params": {"amount": 1500.0},
         "regime_context": "FINRA_US",
         "jurisdiction": "US",
     }
-    response = client.post("/authorize", json=payload)
+    response = client.post("/authorize", json=intent)
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "REMEDIATE"
-    assert data["paseto_token"] is not None
+    assert data["axis_1_action_verdict"]["state"] == "REMEDIATE"
+    assert data["axis_1_action_verdict"]["remediation_details"]["adjusted_payload"]["amount"] == 500.0
 
 
-def test_escalate_verdict():
-    payload = {
+def test_escalate_over_escalation_limit() -> None:
+    intent = {
         "entity_id": "usr_001",
-        "agent_id": "test-agent",
+        "agent_id": "agent-007",
         "action": "transfer_funds",
-        "params": {"amount": 1500},
+        "params": {"amount": 5000.0},
         "regime_context": "FINRA_US",
         "jurisdiction": "US",
     }
-    response = client.post("/authorize", json=payload)
+    response = client.post("/authorize", json=intent)
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "ESCALATE"
+    assert data["paseto_token"] is None
+    assert data["axis_1_action_verdict"]["state"] == "ESCALATE"
 
 
-def test_escalate_with_human_signature():
-    payload = {
+def test_human_override_permit() -> None:
+    intent = {
         "entity_id": "usr_001",
-        "agent_id": "test-agent",
+        "agent_id": "agent-007",
         "action": "transfer_funds",
-        "params": {"amount": 1500},
+        "params": {"amount": 5000.0},
         "regime_context": "FINRA_US",
         "jurisdiction": "US",
     }
-    response = client.post(
-        "/authorize?human_signature=Matias-S", json=payload
-    )
+    response = client.post("/authorize?human_signature=OVERRIDE_001", json=intent)
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "PERMIT"
+    assert data["paseto_token"] is not None
 
 
-def test_block_verdict():
-    payload = {
+def test_sanctioned_jurisdiction_block() -> None:
+    intent = {
         "entity_id": "usr_001",
-        "agent_id": "test-agent",
+        "agent_id": "agent-007",
         "action": "transfer_funds",
-        "params": {"amount": 15000},
+        "params": {"amount": 100.0},
         "regime_context": "FINRA_US",
-        "jurisdiction": "US",
+        "jurisdiction": "SY",
     }
-    response = client.post("/authorize", json=payload)
+    response = client.post("/authorize", json=intent)
     assert response.status_code == 200
     data = response.json()
     assert data["verdict"] == "BLOCK"
-    assert data.get("paseto_token") is None
+    assert data["paseto_token"] is None
