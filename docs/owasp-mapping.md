@@ -2,10 +2,6 @@
 
 This document provides a technical mapping of the **Cognitive Decision Architecture (CDA 2.0)** components against the **OWASP Top 10 for Large Language Model Applications & Agentic AI Systems**. 
 
-The core objective of CDA 2.0 is to enforce the **Sovereignty Invariant**:
-> **D(I) = R(I) · Σ** > *(Decision = Reasoning × Deterministic Control)*
-
-
 ---
 
 ## Risk Mitigation Matrix
@@ -137,4 +133,3 @@ toctou_prevention:
 **Version:** 2.0.0  
 **License:** APACHE 2.0  
 **Author:** Matias Salgado
-```
