@@ -1,100 +1,303 @@
-# CDA 2.0: Cognitive Decision Architecture
-### Deterministic Governance & Forensic Control Plane for AI Agents
+# Cognitive Decision Architecture (CDA) 2.0: Deterministic Governance & Forensic Control Plane for AI Agents 
 
-CDA 2.0 is a deterministic runtime control plane designed and developed by Matias Salgado to bridge autonomous AI agent intents with corporate business rules and international regulatory mandates. It provides real-time network interception, cryptographic decision leasing, and an immutable forensic audit trail for agentic systems.
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
----
+## Description
 
-## 🏛️ Standards & Governance Contributions (ITU-T FG-TIDA)
-CDA 2.0 incorporates select normative frameworks and evaluation models proposed within the ITU-T Focus Group on Trust and Identity for Humans and Agentic AI (FG-TIDA):
-* **Two-Axis Decision Evaluation:** Incorporates Zhao Xinghua's evaluation framework (Axis 1: Action Verdict / Axis 2: Evidence Attestation).
-* **5-State Categorization:** Implements Cyril Gorlla's decision states (PERMIT, REMEDIATE, ESCALATE, BLOCK, INDETERMINATE).
-* **TOCTOU Context-Freeze Pattern:** Integrates Ivan Palma's proposal for detecting state drift at the execution boundary.
+CDA 2.0 is a sophisticated deterministic runtime control plane, meticulously designed by Matias Salgado. It serves as a critical bridge between the autonomous intents of AI agents and the stringent requirements of corporate business rules and international regulatory mandates. CDA 2.0 provides advanced capabilities for real-time network interception, secure cryptographic decision leasing, and the establishment of an immutable forensic audit trail for agentic systems, ensuring transparency, accountability, and compliance.
 
----
 
-## ⚖️ The Sovereignty Invariant
-Every decision within CDA 2.0 follows a mathematical law of integrity:
+Every decision within CDA 2.0 adheres to a deterministic law of integrity:
 
 $$D(I) = R(I) \cdot \Sigma$$
 
 Where:
 - **D(I):** Final Execution Decision.
 - **R(I):** Policy Rule evaluation (Boolean/Deterministic).
-- **Σ (Sigma Seal):** Cryptographic validation via **PASETO v4** (60s Ephemeral Lease).
+- **Σ (Sigma Seal):** Cryptographic attestation via **PASETO v4** (60s Ephemeral Lease).
 
 
-## Core Architecture & System Components.
 
-CDA aligns with the terminology and concepts of the ITU-T FG-TIDA Working Group to ensure interoperability and understanding within the AI ecosystem.
+## Key Features
 
-```mermaid
-flowchart TD
-    Agent["Agente / Simulador (ITU-T)"] -->|"Intento de Acción (HTTP/gRPC)"| Gate
-    subgraph Backend["CDA 2.0 BACKEND (Docker Container)"]
-        Gate["GATE<br/>(Interceptación y Enforcement)"] <-->|"PASETO v4.local"| Kernel["KERNEL<br/>(Evaluación y Veredicto)"]
-        Kernel -->|"Persistencia & Eventos"| Ledger["LEDGER<br/>(Audit Trail DB)"]
-    end
-    Ledger -->|"SSE (Streaming) & API"| Dashboard["DASHBOARD (Frontend)<br/>(Audit & Human-in-the-Loop)"]
+- **Deterministic Governance:** Enforces business rules and regulations with predictable, auditable outcomes.
+- **Real-time Network Interception:** Captures and analyzes agent intents at the network perimeter.
+- **Cryptographic Decision Leasing:** Utilizes PASETO v4 for secure, time-bound authorization of actions.
+- **Immutable Forensic Audit Trail:** Logs all decisions, policy evaluations, and human interventions for complete traceability.
+- **Two-Axis Decision Evaluation:** Implements a robust framework for action verdicts and evidence attestation.
+- **5-State Decision Model:** Employs a clear categorization of decisions (PERMIT, REMEDIATE, ESCALATE, BLOCK, INDETERMINATE).
+- **TOCTOU Context-Freeze Pattern:** Detects and mitigates state drift at the execution boundary.
+- **Unified Control Plane:** A single API and dashboard integrates Kernel, Gate, and Audit Ledger functionalities.
+- **Interactive Dashboard:** Provides real-time telemetry, risk metrics, and operator controls.
+- **Containerized Deployment:** Docker and Docker Compose support for streamlined deployment.
 
-```
+## Standards & Governance Contributions
 
--   **CDA Enforcement Gate**: Perimeter network proxy developed by Matias Salgado. Intercepts incoming agent intents in-flight, validates PASETO v4 decision leases, enforces Ivan Palma's TOCTOU context-freeze check, and executes fail-closed blocking.
--   **CDA Policy Kernel**: Core decision engine developed by Matias Salgado. Evaluates intents against registered policies using Cyril Gorlla's 5-state model and Zhao Xinghua's Two-Axis framework, minting 60-second ephemeral PASETO v4 tokens.
--   **Forensic Audit Ledger**: Immutable persistence layer engineered by Matias Salgado. Logs full decision chains, SHA-256 policy reference hashes, and Human-in-the-Loop resolution events.
--   **Control Plane Dashboard**: Interactive real-time web console engineered by Matias Salgado. Renders Server-Sent Events (SSE) telemetry, live risk metrics, and operator escalation controls.
+CDA 2.0 incorporates select normative frameworks and evaluation models proposed within the ITU-T Focus Group on Trust and Identity for Humans and Agentic AI (FG-TIDA):
+- **Two-Axis Decision Evaluation:** Incorporates Zhao Xinghua's evaluation framework (Axis 1: Action Verdict / Axis 2: Evidence Attestation).
+- **5-State Categorization:** Implements Cyril Gorlla's decision states (`PERMIT`, `REMEDIATE`, `ESCALATE`, `BLOCK`, `INDETERMINATE`).
+- **TOCTOU Context-Freeze Pattern:** Integrates Iván Palma's proposal for detecting state drift at the execution boundary.
 
-## 🔄 System Execution Flow
-The CDA operates as a five-stage pipeline to ensure that no AI intent reaches execution without deterministic validation.
+## Table of Contents
 
-```mermaid
-graph TD
-    A[LLM Agent] --> B[Deterministic Policy Kernel (PEP)]
-    B --> C[Attestation Envelope]
-    C --> D{Runtime Enforcement Boundary}
-    D --> E[Forensic Audit Ledger]
-    D -- "Allow" --> F[Execution]
-    D -- "Deny" --> G[Fail-Closed State]
-```
+- [ Description](#description)
+- [ Key Features](#key-features)
+- [ Table of Contents](#table-of-contents)
+- [ Tech Stack](#tech-stack)
+- [ Installation](#installation)
+- [ Usage](#usage)
+- [ How to Use](#how-to-use)
+- [ Project Structure](#project-structure)
+- [ API Reference](#api-reference)
+- [ Contributing](#contributing)
+- [ License](#license)
+- [ Important Links](#important-links)
 
+## Tech Stack
 
-## 🚦 Quick Start
+- **Languages:** Python, HTML, JavaScript, CSS, YAML, Markdown
+- **Frameworks & Libraries:**
+  - Python: FastAPI, Uvicorn, PyseTo, Python-dotenv, Ruff, Mypy, Pytest, Pytest-cov, HTTX, Aiosqlite
+  - Frontend: Vue.js (implied by `index.html` structure), Bootstrap (implied CSS styling)
+  - Containerization: Docker, Docker Compose
+- **Database:** SQLite (via `aiosqlite` in `pyproject.toml`)
 
-### 1. Setup Environment
-```bash
-git clone https://github.com/matiascloudarch/cognitive-decision-architecture
-cd cognitive-decision-architecture
+## Installation
 
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+Follow these steps to set up the Cognitive Decision Architecture environment:
 
-### 2. Launch Unified Control Plane
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/matiascloudarch/cognitive-decision-architecture
+    cd cognitive-decision-architecture
+    ```
+
+2.  **Create and Activate Virtual Environment:**
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+
+3.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *(Note: `pyproject.toml` may also contain relevant development dependencies for `ruff`, `mypy`, `pytest`, etc.)*
+
+4.  **Docker Setup (Recommended):**
+    For a fully containerized experience, use Docker Compose:
+    ```bash
+    docker compose up --build
+    ```
+    This will build the Docker images and start the `cda-control-plane` and `cda-audit` services.
+
+## Usage
+
+The Cognitive Decision Architecture (CDA) is designed to act as a control plane for AI agents, ensuring their actions comply with predefined rules and regulations. It intercepts agent intents, evaluates them against policies using a two-axis system (Action Verdict and Evidence Attestation), and then either permits, remediates, escalates, or blocks the action. The system also maintains an immutable audit trail.
+
+### Core Workflow:
+
+1.  **AI Agent Intent:** An AI agent formulates an intent (e.g., to transfer funds, access data).
+2.  **CDA Kernel Evaluation:** The intent is sent to the CDA Kernel (`/kernel/authorize` endpoint), which applies policy rules and generates a PASETO v4 signed token representing the decision.
+3.  **CDA Gate Enforcement:** The PASETO token is passed along with the actual execution request to the CDA Gate (`/gate/execute` endpoint). The Gate verifies the token, checks for context drift (TOCTOU), enforces circuit breakers, and performs payload integrity checks.
+4.  **Execution or Block:** Based on the Gate's validation, the action is either executed, remediated (with capped parameters), or blocked.
+5.  **Audit Trail:** All decisions and enforcement actions are logged in an immutable audit ledger.
+
+## How to Use
+
+### 1. Launch the Unified Control Plane
+
+If not using Docker Compose, you can launch the FastAPI application directly:
 
 ```Bash
 uvicorn cda.server:app --reload --port 8002
 ```
 
-### 3. Dashboard: Access the live control plane at
+### 2. Access the Control Plane Dashboard
+
+Open your web browser to the following address to access the interactive dashboard:
+
 ```bash
 [http://127.0.0.1:8002/](http://127.0.0.1:8002/)
 ```
 
-### 4. Run Scenario Simulation
+### 3. Run Scenario Simulations
+
+Execute pre-defined scenarios to test various decision paths:
+
 ```bash
 python -m cda.scripts.simulate_hallucination
 ```
 
-### 5. Run Adversarial Security Suite
+### 4. Run Adversarial Security Suite
+
+Execute automated tests to validate security and adversarial resilience:
+
 ```bash
 pytest cda/tests/test_adversarial.py -v -s
 ```
 
-> [Technical Documentation]
-> View the [Architecture Specifications](./architecture.md), [Regulatory Alignment](./regulatory-mapping.md), [ITU-T FG-TIDA Use Case Mapping](./ITU_T_FG_TIDA_USE_CASE.md) and [OWASP LLM Top 10 Mapping](./owasp-mapping.md) for deeper details.
+### 5. Validate Synthetic Vectors (ITU-T FG-TIDA Compliance)
+
+Verify adherence to specific ITU-T standards using provided test vectors:
+
+```bash
+python -m cda.scripts.validate_vectors
+```
+
+### Example API Interaction (Kernel & Gate):
+
+**a) Authorize Intent via Kernel:**
+
+```python
+import requests
+
+base_url = "http://127.0.0.1:8002"
+
+intent_data = {
+    "entity_id": "usr_001",
+    "agent_id": "agent-007",
+    "action": "transfer_funds",
+    "params": {"amount": 100.0},
+    "regime_context": "FINRA_US",
+    "jurisdiction": "US",
+}
+
+response = requests.post(f"{base_url}/kernel/authorize", json=intent_data)
+auth_result = response.json()
+print(auth_result)
+# Expected output: {'verdict': 'PERMIT', ... 'paseto_token': 'v4.local....'}
+```
+
+**b) Execute Action via Gate:**
+
+```python
+
+token = auth_result.get("paseto_token")
+
+gate_payload = {
+    "target_service": "payment_gateway",
+    "action": "transfer_funds",
+    "params": {"amount": 100.0},
+    "global_context_freeze": False
+}
+
+exec_response = requests.post(
+    f"{base_url}/gate/execute",
+    json=gate_payload,
+    headers={"Authorization": f"Bearer {token}"}
+)
+exec_result = exec_response.json()
+print(exec_result)
+# Expected output: {'final_state': 'EXECUTED', ...}
+```
+
+## Project Structure
+
+```
+cognitive-decision-architecture/
+├── .venv/
+├── cda/
+│   ├── __init__.py
+│   ├── context_provider/
+│   │   └── __init__.py
+│   ├── gate/
+│   │   ├── __init__.py
+│   │   └── engine.py
+│   ├── kernel/
+│   │   ├── __init__.py
+│   │   └── engine.py
+│   ├── ledger/
+│   │   ├── __init__.py
+│   │   └── audit.py
+│   ├── scenarios/
+│   │   ├── __init__.py
+│   │   └── s4_refunds.py
+│   ├── scripts/
+│   │   ├── run_full_audit.sh
+│   │   ├── simulate_hallucination.py
+│   │   └── validate_vectors.py
+│   ├── shared/
+│   │   ├── __init__.py
+│   │   └── models.py
+│   ├── tests/
+│   │   ├── _init_.py
+│   │   ├── test_adversarial.py
+│   │   ├── test_audit_ledger.py
+│   │   ├── test_integration.py
+│   │   ├── test_logic.py
+│   │   ├── test_phase1.py
+│   │   ├── test_phase2.py
+│   │   └── test_s4_and_features.py
+│   │   └── test_two_axes_toctou.py
+│   ├── index.html
+│   └── server.py
+├── docs/
+│   ├── architecture.md
+│   ├── ITU_T_FG_TIDA_USE_CASE.md
+│   ├── owasp-mapping.md
+│   └── regulatory-mapping.md
+├── Dockerfile
+├── docker-compose.yml
+├── experiment.json
+├── LICENSE
+├── pyproject.toml
+├── pytest.ini
+├── requirements.txt
+├── SPEC_DRAFT_TWO_AXES.md
+└── synthetic_vectors.json
+```
+
+## API Reference
+
+The unified control plane exposes several API endpoints:
+
+- **`/health` (GET):** Health check for the core API.
+- **`/ledger` (GET):** Retrieves the full decision ledger.
+- **`/evaluate` (POST):** Evaluates an action via the Kernel, returning a simplified response.
+- **`/kernel/authorize` (POST):** The primary endpoint for the Kernel to authorize intents.
+- **`/gate/execute` (POST):** The primary endpoint for the Gate to enforce execution.
+- **`/api/v1/decisions/history` (GET):** Fetches historical decisions.
+- **`/api/v1/decisions/pending` (GET):** Retrieves decisions awaiting human review.
+- **`/api/v1/decisions/{decision_id}/approve` (POST):** Approves a pending decision.
+- **`/api/v1/decisions/{decision_id}/reject` (POST):** Rejects a pending decision.
+- **`/api/v1/audit/logs` (POST):** Receives client-side audit logs.
+- **`/api/v1/stream/decisions` (GET):** SSE stream for real-time decision updates.
+- **`/` (GET):** Serves the Control Plane Dashboard UI.
+
+*Refer to `cda/server.py` for detailed endpoint definitions and `cda/gate/engine.py` and `cda/kernel/engine.py` for sub-application endpoints.* 
+
+## Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1.  **Fork the Repository:** Create a fork of the `cognitive-decision-architecture` repository.
+2.  **Create a New Branch:** Make your changes on a separate branch (`git checkout -b feature/your-feature-name`).
+3.  **Commit Your Changes:** Use clear and concise commit messages.
+4.  **Push to the Branch:** `git push origin feature/your-feature-name`
+5.  **Open a Pull Request:** Submit a pull request to the main repository.
+
+Please ensure your contributions adhere to the project's coding standards and include relevant tests.
+
+## License
+
+This project is licensed under the **Apache License, Version 2.0**. See the `LICENSE` file for more details.
 
 
-## ⚖️ License
-Licensed under the Apache License, Version 2.0. See LICENSE for details.
+## Important Links
 
+- **Local Control Plane Dashboard:** [http://127.0.0.1:8002/](http://127.0.0.1:8002/)
+- **Author Profile:** [matiascloudarch on GitHub](https://github.com/matiascloudarch)
+- **Related Standards:** [ITU-T FG-TIDA](https://www.itu.int/en/ITU-T/focusgroups/ida/Pages/default.aspx)
+- **Architecture Specifications:** [Architecture Specifications](./docs/architecture.md)
+- **Regulatory Alignment:** [Regulatory Alignment](./docs/regulatory-mapping.md)
+- **ITU-T FG-TIDA Use Case Mapping:** [ITU-T FG-TIDA Use Case Mapping](./docs/ITU_T_FG_TIDA_USE_CASE.md)
+- **OWASP LLM Top 10 Mapping:** [OWASP LLM Top 10 Mapping](./docs/owasp-mapping.md)
+
+
+---
+© 2026 **Cognitive Decision Architecture** | Developed by Matias Salgado
+
+Repository: [matiascloudarch/cognitive-decision-architecture](https://github.com/matiascloudarch/cognitive-decision-architecture)
+
+[Fork] [Star] [Watch] [Issue]
