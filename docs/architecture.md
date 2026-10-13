@@ -8,13 +8,45 @@ The architecture enforces a strict perimeter boundary: **Agents interact exclusi
 
 ```mermaid
 flowchart TD
-    Agent["Agente / Simulador (ITU-T)"] -->|"Intento de Acción (HTTP/gRPC)"| Gate
-    subgraph Backend["CDA 2.0 BACKEND (Docker Container)"]
-        Gate["GATE<br/>(Interceptación y Enforcement)"] <-->|"PASETO v4.local"| Kernel["KERNEL<br/>(Evaluación y Veredicto)"]
-        Kernel -->|"Persistencia & Eventos"| Ledger["LEDGER<br/>(Audit Trail DB)"]
-    end
-    Ledger -->|"SSE (Streaming) & API"| Dashboard["DASHBOARD (Frontend)<br/>(Audit & Human-in-the-Loop)"]
+    %% System Nodes
+    Agent(["Autonomous AI Agent"]):::actor -->|"1. Action Intent (HTTP/gRPC)"| Gate{{"CDA Gate (PEP)"}}:::gate
 
+    %% Left Column: Secure Control Plane
+    subgraph CP ["SECURE CONTROL PLANE"]
+        direction TB
+        Kernel[["Policy Kernel (PDP)"]]:::kernel
+        Ledger[("Audit Ledger")]:::ledger
+        Dashboard("Dashboard (HITL)"):::dash
+
+        Kernel -->|"4. Persist Trace &<br/>Policy Hash"| Ledger
+        Ledger -->|"5. Real-Time<br/>Telemetry (SSE)"| Dashboard
+        Dashboard <-->|"3. Escalate Hold & Operator Override<br/>(Conditional: High Risk / Out of Bounds Only)"| Kernel
+    end
+
+    %% Right Column: Protected Execution Boundary
+    subgraph PROD ["PROTECTED EXECUTION BOUNDARY"]
+        direction LR
+        Target[("Target API / DB")]:::target
+        Block(("Fail-Closed Block")):::block
+    end
+
+    %% Execution Routing with Compact Labels
+    Gate <-->|"2. Evaluate Request<br/>& Mint Lease"| Kernel
+    Gate -->|"6a. Forward Valid<br/>Execution"| Target
+    Gate -.->|"6b. Deny / TOCTOU<br/>Rejection (403)"| Block
+
+    %% Modern Tech Palette Styles
+    classDef actor fill:#F8FAFC,stroke:#475569,stroke-width:2px,color:#0F172A
+    classDef gate fill:#EEF2FF,stroke:#4F46E5,stroke-width:2px,color:#312E81
+    classDef kernel fill:#F5F3FF,stroke:#7C3AED,stroke-width:2px,color:#4C1D95
+    classDef ledger fill:#ECFEFF,stroke:#0891B2,stroke-width:2px,color:#164E63
+    classDef dash fill:#FFFBEB,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef target fill:#ECFDF5,stroke:#059669,stroke-width:2px,color:#064E3B
+    classDef block fill:#FFF1F2,stroke:#E11D48,stroke-width:2px,stroke-dasharray: 4 4,color:#881337
+
+    %% Subgraph Borders
+    style CP fill:none,stroke:#7C3AED,stroke-width:2px,stroke-dasharray: 5 5
+    style PROD fill:none,stroke:#10B981,stroke-width:2px
 ```
 
 ---

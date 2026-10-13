@@ -1,31 +1,18 @@
-# CDA 2.0 Mapping to OWASP LLM Top 10 (Standard v1.1) 🛡️
+# CDA 2.0 Mapping to OWASP LLM Top 10 (Standard v1.1)
 
 This document provides a technical mapping of the **Cognitive Decision Architecture (CDA 2.0)** components against the **OWASP Top 10 for Large Language Model Applications & Agentic AI Systems**. 
 
 The core objective of CDA 2.0 is to enforce the **Sovereignty Invariant**:
 > **D(I) = R(I) · Σ** > *(Decision = Reasoning × Deterministic Control)*
 
----
-
-## 🏗️ Architectural Overview
-
-```mermaid
-flowchart TD
-    Agent["Agente / Simulador (ITU-T)"] -->|"Intento de Acción (HTTP/gRPC)"| Gate
-    subgraph Backend["CDA 2.0 BACKEND (Docker Container)"]
-        Gate["GATE<br/>(Interceptación y Enforcement)"] <-->|"PASETO v4.local"| Kernel["KERNEL<br/>(Evaluación y Veredicto)"]
-        Kernel -->|"Persistencia & Eventos"| Ledger["LEDGER<br/>(Audit Trail DB)"]
-    end
-    Ledger -->|"SSE (Streaming) & API"| Dashboard["DASHBOARD (Frontend)<br/>(Audit & Human-in-the-Loop)"]
-```
 
 ---
 
-## 🛡️ Risk Mitigation Matrix
+## Risk Mitigation Matrix
 
 ### LLM01: Prompt Injection & Intent Hijacking
 * **CDA Component:** Kernel Policy Engine & Intent Normalization
-* **Control Type:** Preventive (Deterministic Schema Enforcemen)
+* **Control Type:** Preventive (Deterministic Schema Enforcement)
 * **Implementation:** Mapping stochastic LLM output into typed AgentIntent Pydantic v2 schemas and strict regime checking.
 * **Technical Control:**
 ```yaml
