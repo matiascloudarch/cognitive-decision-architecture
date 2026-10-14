@@ -23,6 +23,7 @@ from cda.shared.models import AgentIntent
 def validate_synthetic_vectors(vector_file_path: str = "synthetic_vectors.json") -> None:
     """
     Validates all synthetic test vectors against live Kernel and Gate components.
+    Exits with code 1 if any vector fails validation to support CI/CD build pipelines.
     """
     print(f"[*] Loading synthetic vectors from: {vector_file_path}\n")
     
@@ -40,6 +41,7 @@ def validate_synthetic_vectors(vector_file_path: str = "synthetic_vectors.json")
     print(f"=== Alignment: {verifier.get('specification_alignment')} ===\n")
 
     passed_count = 0
+    failed_count = 0
     total_count = len(vectors)
 
     for vector in vectors:
@@ -69,10 +71,12 @@ def validate_synthetic_vectors(vector_file_path: str = "synthetic_vectors.json")
         expected_axis_1 = expected.get("axis_1_state")
         if expected_axis_1 and axis_1_state != expected_axis_1:
             print(f"  [FAIL] Axis 1 mismatch: Got '{axis_1_state}', expected '{expected_axis_1}'")
+            failed_count += 1
             continue
 
         if expected.get("token_issued") != token_issued:
             print(f"  [FAIL] Token issuance mismatch: Got {token_issued}, expected {expected.get('token_issued')}")
+            failed_count += 1
             continue
 
         # 2. Gate Evaluation
@@ -104,6 +108,7 @@ def validate_synthetic_vectors(vector_file_path: str = "synthetic_vectors.json")
             expected_trace = expected.get("expected_gate_trace")
             if gate_trace.final_state != expected_trace and expected_trace != "REMEDIATED":
                 print(f"  [FAIL] Gate Trace mismatch: Got '{gate_trace.final_state}', expected '{expected_trace}'")
+                failed_count += 1
                 continue
 
         print("  [PASS] Vector execution matched expectations perfectly.")
@@ -112,6 +117,10 @@ def validate_synthetic_vectors(vector_file_path: str = "synthetic_vectors.json")
     print("\n==========================================")
     print(f"SUMMARY: {passed_count}/{total_count} Synthetic Vectors Successfully Validated")
     print("==========================================\n")
+
+    if failed_count > 0:
+        print(f"[!] CI/CD BUILD FAILURE: {failed_count} vector(s) failed validation.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

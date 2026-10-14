@@ -4,7 +4,7 @@
 
 The Cognitive Decision Architecture (CDA) provides a deterministic, cryptographic control plane designed to enforce real-time operational governance over autonomous AI agents. Built in alignment with ITU-T Focus Group on Trust and Identity for Humans and Agentic AI (FG-TIDA) specifications—specifically UC-4 (Dynamic Multi-Tenant Agent Governance) and UC-21 (Trust and Audit Traceability)—CDA decouples policy evaluation from operational execution.
 
-CDA incorporates Zhao Xinghua's Two-Axis Decision Model, Cyril Gorlla's 5-State Decision Framework, and Ivan Palma's Fail-Closed Enforcement Boundary with TOCTOU context-freeze checks. Decisions are encoded within short-lived, ephemeral PASETO v4 local tokens (60-second TTL) to guarantee cryptographic non-repudiation and prevent Time-of-Check to Time-of-Use (TOCTOU) exploits.
+CDA incorporates Anton Sokolov's Two-Axis Decision Model (AVS-0.2 / Theme #6 Task 3), Steven Zhao's Evaluation Telemetry & Silent Failure Framework, Cyril Gorlla's 5-State Decision Framework, and Iván Abril Palma's Fail-Closed Enforcement Boundary with TOCTOU context-freeze checks. Decisions are encoded within short-lived, ephemeral PASETO v4 local tokens (60-second TTL) to guarantee cryptographic non-repudiation and prevent Time-of-Check to Time-of-Use (TOCTOU) exploits.
 
 ---
 
@@ -12,39 +12,39 @@ CDA incorporates Zhao Xinghua's Two-Axis Decision Model, Cyril Gorlla's 5-State 
 
 ### 1. Two-Axis Decision & 5-State Governance Model
 
-CDA integrates the core FG-TIDA governance specifications proposed by Zhao Xinghua (Two-Axis Evaluation Model) and Cyril Gorlla (5-State Decision Categorization):
+CDA integrates the core FG-TIDA governance specifications proposed by Anton Sokolov (Two-Axis Separation Model), Steven Zhao (Checks-in-Path Telemetry & Silent Failure Catalog), Cyril Gorlla (5-State Decision Categorization), and Iván Abril Palma (TOCTOU Verification Boundary):
 
-* **Axis 1: Operational Action Verdict (`Axis1ActionVerdict`)**  
+- **Axis 1: Operational Action Verdict (`Axis1ActionVerdict`)**  
   Evaluates operational compliance into Cyril Gorlla's 5 discrete decision states:
-  * `PERMIT`: Action complies fully with policy limits.
-  * `REMEDIATE`: Action exceeds auto-approval threshold but falls within remediation boundaries. The Kernel automatically caps input parameters (e.g., amount limit) and preserves both `original_payload` and `adjusted_payload` under rule authority.
-  * `ESCALATE`: Action requires Human-in-the-Loop (HITL) authorization signature.
-  * `BLOCK`: Action exceeds maximum policy boundaries.
-  * `INDETERMINATE`: Assigned when policy resolution is ambiguous or regime context is unregistered.
+  - `PERMIT`: Action complies fully with policy limits.
+  - `REMEDIATE`: Action exceeds auto-approval threshold but falls within remediation boundaries. The Kernel automatically caps input parameters (e.g., amount limit) and preserves both `original_payload` and `adjusted_payload` under rule authority.
+  - `REQUIRES_HUMAN_REVIEW`: Action requires Human-in-the-Loop (HITL) authorization signature.
+  - `BLOCK`: Action exceeds maximum policy boundaries.
+  - `INDETERMINATE`: Assigned when policy resolution is ambiguous or regime context is unregistered.
 
-* **Axis 2: Evaluation Evidence Attestation (`Axis2EvaluationEvidence`)**  
-  Provides cryptographic attestation of the policy engine's execution telemetry (Zhao Xinghua Framework):
-  * Tracks execution status of the policy engine (`COMPLETE`, `INVALID_REGIME_CONTEXT`, `UNRESOLVED_DEPENDENCY_OR_STALE_CONTEXT`, `INVALID_TOKEN`, `EXPIRED_LEASE`).
-  * Lists check IDs executed and explicit failure mode codes.
+- **Axis 2: Evaluation Evidence Attestation (`Axis2EvaluationEvidence`)**  
+  Provides cryptographic attestation of the policy engine's execution telemetry (Steven Zhao Framework):
+  - Tracks execution status of the policy engine (`COMPLETE`, `INVALID_REGIME_CONTEXT`, `UNRESOLVED_DEPENDENCY_OR_STALE_CONTEXT`, `INVALID_TOKEN`, `EXPIRED_LEASE`).
+  - Lists check IDs executed and explicit failure mode codes.
 
 ---
 
 ### 2. Failure Handling & Strict Regime Enforcement
 
 To eliminate silent fallbacks (e.g., defaulting unmapped context to `FINRA_US`):
-* Unregistered or unmapped `regime_context` immediately halts execution.
-* The Kernel returns an `INDETERMINATE` verdict with `fallback_action: "BLOCK"` and Axis 2 status `INVALID_REGIME_CONTEXT`.
-* **Zero-Token Issuance:** No PASETO v4 lease is minted, preventing downstream Gate execution.
+- Unregistered or unmapped `regime_context` immediately halts execution.
+- The Kernel returns an `INDETERMINATE` verdict with `fallback_action: "BLOCK"` and Axis 2 status `INVALID_REGIME_CONTEXT`.
+- **Zero-Token Issuance:** No PASETO v4 lease is minted, preventing downstream Gate execution.
 
 ---
 
 ### 3. Cryptographic Decision Leases (PASETO v4)
 
 Authorization decisions are issued as PASETO v4 local tokens containing:
-* `policy_ref_hash`: SHA-256 hash binding decision payload directly to policy version.
-* `axis_1_action_verdict`: Complete Axis 1 state and remediation metadata.
-* `axis_2_evaluation_evidence`: Verification checks and engine execution status.
-* `exp`: Ephemeral 60-second lease expiration.
+- `policy_ref_hash`: SHA-256 hash binding decision payload directly to policy version.
+- `axis_1_action_verdict`: Complete Axis 1 state and remediation metadata.
+- `axis_2_evaluation_evidence`: Verification checks and engine execution status.
+- `exp`: Ephemeral 60-second lease expiration.
 
 ---
 
@@ -52,7 +52,7 @@ Authorization decisions are issued as PASETO v4 local tokens containing:
 
 The Gate enforces cryptographic validation and state freshness prior to target execution:
 1. Validates PASETO v4 signature and lease expiration.
-2. Evaluates state freshness via Iván Palma's TOCTOU context-freeze check (`global_context_freeze`).
+2. Evaluates state freshness via Iván Abril Palma's TOCTOU context-freeze check (`global_context_freeze`).
 3. Emits a deterministic 3-State Execution Trace (`EXECUTED`, `BLOCKED`, `REMEDIATED`).
 
 ---

@@ -31,12 +31,16 @@ Where:
 - **Interactive Dashboard:** Provides real-time telemetry, risk metrics, and operator controls.
 - **Containerized Deployment:** Docker and Docker Compose support for streamlined deployment.
 
+
 ## Standards & Governance Contributions
 
 CDA 2.0 incorporates select normative frameworks and evaluation models proposed within the ITU-T Focus Group on Trust and Identity for Humans and Agentic AI (FG-TIDA):
-- **Two-Axis Decision Evaluation:** Incorporates Zhao Xinghua's evaluation framework (Axis 1: Action Verdict / Axis 2: Evidence Attestation).
-- **5-State Categorization:** Implements Cyril Gorlla's decision states (`PERMIT`, `REMEDIATE`, `ESCALATE`, `BLOCK`, `INDETERMINATE`).
-- **TOCTOU Context-Freeze Pattern:** Integrates Iván Palma's proposal for detecting state drift at the execution boundary.
+
+- **Two-Axis Separation (Action Verdict vs. Evaluation Evidence):** Anton Sokolov (@tyche-dev, AVS-0.2). Evaluates intent via Axis 1 (Action Verdict) and Axis 2 (Evidence Attestation).
+- **Checks-in-Path Recording & Silent Failure Catalog:** Steven Zhao (@zhaoxinghua09-cell). Formalizes execution path recording and unmapped regime failure modes.
+- **5-State Verdict Taxonomy:** Cyril Gorlla (@cgorlla). Implements the decision states (`PERMIT`, `REMEDIATE`, `REQUIRES_HUMAN_REVIEW`, `BLOCK`, `INDETERMINATE`).
+- **Atomic Check-to-Act (TOCTOU) Verification Boundary:** Iván Abril Palma (@dakleyer). Integrates context-freeze patterns for detecting state drift at the execution boundary.
+
 
 ## Table of Contents
 
@@ -300,4 +304,3 @@ This project is licensed under the **Apache License, Version 2.0**. See the `LIC
 
 Repository: [matiascloudarch/cognitive-decision-architecture](https://github.com/matiascloudarch/cognitive-decision-architecture)
 
-[Fork] [Star] [Watch] [Issue]
