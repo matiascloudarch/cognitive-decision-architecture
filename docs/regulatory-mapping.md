@@ -22,7 +22,7 @@ CDA 2.0 is directly aligned with the ITU-T Focus Group on Trust and Identity for
 
 | Specification | CDA 2.0 Technical Mapping |
 | :--- | :--- |
-| **UC-4: Dynamic Multi-Tenant Governance** | Implements Zhao Xinghua's Two-Axis Model (`Axis1ActionVerdict` and `Axis2EvaluationEvidence`) with short-lived 60-second PASETO v4 local tokens. |
+| **UC-4 (Issue #4): Federated ecosystem defense across independently governed organizations** | Implements Anton Sokolov's Two-Axis Model (`Axis1ActionVerdict` and `Axis2EvaluationEvidence`) alongside Steven Zhao's Checks-in-Path recording with short-lived 60-second PASETO v4.local tokens. |
 | **UC-21: Trust & Audit Traceability** | The Enforcement Gate emits deterministic 3-State Execution Traces (`EXECUTED`, `BLOCKED`, `REMEDIATED`) streamed live via SSE to the Ledger and Dashboard. |
 | **Strict Regime Isolation** | Unmapped or invalid regulatory regimes trigger an `INDETERMINATE` verdict with a `BLOCK` fallback, issuing zero tokens to prevent silent default bypasses. |
 

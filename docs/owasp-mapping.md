@@ -18,12 +18,12 @@ intent_normalization:
   fallback_action: BLOCK
   paseto_token_issued: false
 ```
-* **Why It Works:** By treating the LLM as an untrusted environment, CDA ensures that malicious prompt injections or unmapped regulatory regimes immediately trigger an INDETERMINATE verdict with a BLOCK fallback and zero PASETO v4 token issuance, halting downstream execution.
+* **Why It Works:** By treating the LLM as an untrusted environment, CDA ensures that malicious prompt injections or unmapped regulatory regimes immediately trigger an INDETERMINATE verdict with a BLOCK fallback and zero PASETO v4 local token issuance, halting downstream execution.
 
 ### LLM02: Insecure Output Handling & Unsanctioned Execution
 * **CDA Component:** Enforcement Gate & Two-Axis PASETO v4 Leases
-* **Control Type:** Preventive (Cryptographic Non-Repudiation)
-* **Implementation:** Short-lived PASETO v4 local tokens (60s TTL) encapsulating Axis 1 Action Verdicts and Axis 2 Evaluation Evidence.
+- **Control Type:** Preventive (Cryptographic Authenticity & Integrity - Symmetric AEAD)
+- **Implementation:** Short-lived PASETO v4.local tokens (60s TTL) encapsulating Anton Sokolov's Two-Axis Model (Axis 1 Action Verdicts and Axis 2 Evaluation Evidence).
 * **Technical Control:**
 ```yaml
 integrity_gate:
@@ -32,7 +32,7 @@ integrity_gate:
   check_policy_hash: true
   fail_state: BLOCKED
 ```
-* **Why It Works:** Even if an LLM proposes an unauthorized or hallucinated action, the Gate will refuse to execute it unless accompanied by a valid, unexpired PASETO v4 lease minted by the Kernel with a matching policy_ref_hash.
+* **Why It Works:** Even if an LLM proposes an unauthorized or hallucinated action, the Gate will refuse to execute it unless accompanied by a valid, unexpired PASETO v4 local lease minted by the Kernel with a matching policy_ref_hash.
 
 ### LLM03: Training Data Poisoning & Model Drift
 * **CDA Component:** Kernel Policy Versioning & SHA-256 Binding
@@ -50,13 +50,12 @@ policy_verification:
 ### LLM04: Model Denial of Service (DoS) & Resource Exhaustion
 * **CDA Component:** Kernel Boundary Limits & Rate Controls
 * **Control Type:** Preventive (Boundary Limits & FinOps Enforcement)
-* **Implementation:** Threshold boundaries for automated limit approvals (auto_approve_limit, max_limit) and stochastic drift indices.
+- **Implementation:** Threshold boundaries for automated limit approvals (`auto_approve_limit`, `escalation_threshold`) and stochastic drift indices.
 * **Technical Control:**
 ```yaml
 boundary_limits:
   auto_approve_limit: 500.00
-  escalate_limit: 1000.00
-  max_limit: 5000.00
+  escalation_threshold: 2000.00
   drift_index_formula: "min(1.0, max(0.0, (amount - auto) / (max - auto)))"
 ```
 * **Why It Works:** Prevents financial or resource exhaustion attacks by enforcing automated capping (REMEDIATE), human escalations (ESCALATE), or outright blocks (BLOCK) at the Kernel level.
@@ -93,7 +92,7 @@ context_isolation:
 * **Technical Control:**
 ```yaml
 decision_states:
-  PERMIT: "Execute with PASETO v4 token"
+  PERMIT: "Execute with PASETO v4 local token"
   REMEDIATE: "Cap input parameters to approved threshold"
   ESCALATE: "Require Human-in-the-Loop signature"
   BLOCK: "Deny execution at Gate boundary"
@@ -120,11 +119,11 @@ toctou_prevention:
 
 | Regulation / Standard | CDA Alignment Strategy | Evidence Output |
 | :--- | :--- | :--- |
-| **EU AI Act (Art. 11 & 14)** | High-Risk System Transparency & Human Oversight | Reconstructible PASETO v4 Ledger & HITL Signatures |
+| **EU AI Act (Art. 11 & 14)** | High-Risk System Transparency & Human Oversight | Reconstructible PASETO v4 local Ledger & HITL Signatures |
 | **ITU-T FG-TIDA (UC-4 & UC-21)** | Multi-Tenant Governance & Trust Traceability | Two-Axis Tokens & 3-State Execution Traces |
 | **NIST AI RMF 1.0** | Govern, Measure, Manage Functions | Deterministic Policy Kernel & Fail-Closed Gate |
 | **ISO/IEC 42001** | AI Management System (AIMS) | Immutable Audit Trail & Versioned Policy Hashes |
-| **FINRA / SEC** | Algorithmic Accountability | Non-repudiation via PASETO v4.public Tokens |
+| **FINRA / SEC** | Algorithmic Accountability | Authenticated Execution Envelopes via PASETO v4.local Tokens |
 
 
 ---
