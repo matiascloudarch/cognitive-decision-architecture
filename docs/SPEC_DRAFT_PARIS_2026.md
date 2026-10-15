@@ -1,7 +1,15 @@
-# Cognitive Decision Architecture (CDA 2.0)
-## Specification Draft: Two-Axis Model for Autonomous AI Agent Governance
-**SPDX-License-Identifier: Apache-2.0**  
-**Copyright 2026 Matias Salgado**
+# ITU-T Focus Group on Trust and Identity for Humans and Agentic AI (FG-TIDA)
+## Contribution / Draft Specification: Two-Axis Governance Envelope & Ephemeral Control Plane (CDA 2.0)
+
+**Document Status:** Working Draft (Stage 0 Candidate Baseline)  
+**Date:** November 2026  
+**Meeting:** ITU-T FG-TIDA In-Person Meeting (Paris, 29 Nov – 1 Dec 2026)  
+**Source:** Matias Salgado (Lead Architect, CDA 2.0 Project)  
+**Target Work Items & Official Source Titles:**  
+- **UC-4 (Issue #4):** *Federated ecosystem defense across independently governed organizations* (Status: Working Draft)  
+- **UC-21 (Issue #21):** *When the controls work but the system fails — six failure scenarios and three implementation walkthroughs* (Status: Working Draft)  
+- **Theme #36 (Issue #36):** *Identity-behaviour-enforcement mismatch for AI agents* (Status: Proposed Working Group Charter)  
+**Document License:** SPDX-License-Identifier: Apache-2.0  
 
 ---
 
@@ -26,7 +34,7 @@ Cognitive Decision Architecture (CDA 2.0) introduces a deterministic, zero-trust
 The Enforcement Gate validates incoming execution parameters against claims cryptographically sealed inside the PASETO v4 local token (shared-key AEAD). Any parameter modification prior to downstream execution triggers an immediate `PAYLOAD_TAMPERING_DETECTED` trace and blocks execution.
 
 #### 2.2 Behavioral Circuit Breaker & Human-in-the-Loop
-In-memory agent rate tracking halts continuous or anomalous execution loops at the Gate boundary. Out-of-bound intents transition Axis 1 to `ESCALATE` (requiring human-in-the-loop review), placing the action on `HOLD` until an authorized cryptographic signature resolves the escalation.
+In-memory agent rate tracking halts continuous or anomalous execution loops at the Gate boundary. Out-of-bound intents transition Axis 1 to `ESCALATE` (requiring human-in-the-loop review), placing the action on `HOLD` without execution until an authorized cryptographic signature resolves the escalation or lease expiration forces a `BLOCK`.
 
 #### 2.3 Time-of-Check to Time-of-Use (TOCTOU) Protection
 Context freshness is validated atomically at execution time (*Check-to-Act*). When `global_context_freeze` is flagged or lease TTL expires (>60s), execution is rejected deterministically with `TOCTOU_STALE_CONTEXT_DETECTED` or `EXPIRED_LEASE_TOKEN`.
@@ -37,4 +45,4 @@ Unrecognized or opaque regime contexts deterministically yield an `INDETERMINATE
 ---
 
 ### 3. Standards Compliance & Schema Alignment
-Aligned with International Telecommunication Union **ITU-T FG-TIDA Use Cases UC-4 and UC-21** and Schema 1.1.0 (`urn:uc4:experiment-contract:1.1.0`) for trusted AI agent execution and liability attribution.
+Aligned with International Telecommunication Union **ITU-T FG-TIDA Work Items UC-4** (*Issue #4*), **UC-21** (*Issue #21*), and **Theme #36** (*Identity-behaviour-enforcement mismatch for AI agents*) under Schema 1.1.0 (`urn:uc4:experiment-contract:1.1.0`).
