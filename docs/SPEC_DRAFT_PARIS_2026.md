@@ -12,8 +12,8 @@ Cognitive Decision Architecture (CDA 2.0) introduces a deterministic, zero-trust
 2. **Two-Axis Governance Model:**
    - **Axis 1 (Action Verdict):** Evaluates business intent outcomes (`PERMIT`, `REMEDIATE`, `ESCALATE`, `BLOCK`, `INDETERMINATE`).
    - **Axis 2 (Evaluation Evidence):** Captures evaluation integrity, execution status, and check traces (`PAYLOAD_VALID`, `UNMAPPED_REGIME_CONTEXT`, `TOCTOU_STALE_CONTEXT_DETECTED`, `EXPIRED_LEASE_TOKEN`).
-3. **Cryptographic Leases:** Short TTL (60s) PASETO v4 local tokens binding entity identity, policy reference hashes (`policy_ref_hash`), and authorized parameters.
-4. **Non-Repudiation Audit Ledger:** Append-only SHA-256 hash-chained ledger guaranteeing historical liability attribution across three distinct layers:
+3. **Cryptographic Leases:** Short TTL (60s) PASETO v4 local tokens (shared-key authenticated encryption) binding entity identity, policy reference hashes (`policy_ref_hash`), and authorized parameters.
+4. **Audit Ledger:** Append-only SHA-256 hash-chained ledger guaranteeing historical liability attribution across three distinct layers:
    - `guard_decision`: Policy Kernel verdict and Gate attestation.
    - `attempted_action`: Raw requested intent from the AI agent.
    - `independently_observed_target_state`: Verified downstream resource state confirming zero-mutation on block.
@@ -23,10 +23,10 @@ Cognitive Decision Architecture (CDA 2.0) introduces a deterministic, zero-trust
 ### 2. Boundary Enforcement Mechanisms
 
 #### 2.1 Syntactic Payload Lock
-The Enforcement Gate validates incoming execution parameters against claims cryptographically signed in the PASETO v4 token. Any parameter modification prior to downstream execution triggers an immediate `PAYLOAD_TAMPERING_DETECTED` trace and blocks execution.
+The Enforcement Gate validates incoming execution parameters against claims cryptographically sealed inside the PASETO v4 local token (shared-key AEAD). Any parameter modification prior to downstream execution triggers an immediate `PAYLOAD_TAMPERING_DETECTED` trace and blocks execution.
 
 #### 2.2 Behavioral Circuit Breaker & Human-in-the-Loop
-In-memory agent rate tracking halts continuous or anomalous execution loops at the Gate boundary. Out-of-bound intents transition Axis 1 to `REQUIRES_HUMAN_REVIEW`, placing the action on `HOLD` until an authorized cryptographic signature resolves the escalation.
+In-memory agent rate tracking halts continuous or anomalous execution loops at the Gate boundary. Out-of-bound intents transition Axis 1 to `ESCALATE` (requiring human-in-the-loop review), placing the action on `HOLD` until an authorized cryptographic signature resolves the escalation.
 
 #### 2.3 Time-of-Check to Time-of-Use (TOCTOU) Protection
 Context freshness is validated atomically at execution time (*Check-to-Act*). When `global_context_freeze` is flagged or lease TTL expires (>60s), execution is rejected deterministically with `TOCTOU_STALE_CONTEXT_DETECTED` or `EXPIRED_LEASE_TOKEN`.
