@@ -64,8 +64,8 @@ flowchart TD
 * **Function:** Core decision engine applying governance policies, jurisdiction rules, and risk evaluation algorithms.
 * **Key Mechanisms:**
   * **State Machine:** Maintains short-term session state, retry counters, and agent context.
-  * **Verdict Engine:** Evaluates policy boundaries against Zhao Xinghua's Two-Axis Model and Cyril Gorlla's 5-State Framework (`PERMIT`, `REMEDIATE`, `ESCALATE`, `BLOCK`, `INDETERMINATE`).
-  * **Cryptographic Engine:** Mints and signs PASETO v4 tokens carrying SHA-256 policy reference hashes.
+- **Verdict Engine:** Evaluates policy boundaries against Anton Sokolov's Two-Axis Model (`Axis1ActionVerdict` and `Axis2EvaluationEvidence`) and Cyril Gorlla's 5-State Framework (`PERMIT`, `REMEDIATE`, `ESCALATE`, `BLOCK`, `INDETERMINATE`).
+- **Cryptographic Engine:** Mints PASETO v4.local decision tokens (shared-key AEAD) carrying SHA-256 policy reference hashes (`policy_ref_hash`).
 
 ### 3. The Ledger (Audit Trail & Persistence DB)
 * **Function:** Immutable store holding forensic event history and audit trails.
@@ -83,9 +83,9 @@ flowchart TD
 
 ---
 
-## Cryptographic Token Scheme (PASETO v4)
+## Cryptographic Token Scheme (PASETO v4.local)
 
-CDA 2.0 uses Platform-Agnostic Security Tokens (PASETO v4) scoped by communication boundary:
+CDA 2.0 utilizes **PASETO v4.local** (Platform-Agnostic Security Tokens v4 in Local Mode) as an ephemeral decision lease between the Policy Decision Point (Kernel) and Policy Enforcement Point (Gate):
 
-* **PASETO v4.local (Symmetric Encryption):** Used for internal communication inside the backend container (`Gate ↔ Kernel`). Guarantees payload confidentiality and integrity in transit.
-* **PASETO v4.public (Asymmetric Signatures):** Used for external verdict delivery and Ledger auditing. The Kernel signs decisions with its private key; external auditors verify authenticity using the corresponding public key (non-repudiation).
+- **Shared-Key Authenticated Encryption (Symmetric AEAD):** Built on XChaCha20-Poly1305 and BLAKE2b, guaranteeing symmetric authenticity, confidentiality, and payload integrity in transit.
+- **Ephemeral Decision Leases (60s TTL):** Bound directly to entity identity, policy reference hashes (`policy_ref_hash`), and authorized parameter bounds, eliminating window-of-exposure vulnerabilities between evaluation and actuation (TOCTOU protection).
