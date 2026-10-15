@@ -14,7 +14,7 @@ $$D(I) = R(I) \cdot \Sigma$$
 Where:
 - **D(I):** Final Execution Decision.
 - **R(I):** Policy Rule evaluation (Boolean/Deterministic).
-- **Σ (Sigma Seal):** Cryptographic attestation via **PASETO v4** (60s Ephemeral Lease).
+- **Σ (Sigma Seal):** Shared-key authenticated encryption via **PASETO v4.local** (60s Ephemeral Lease).
 
 
 
@@ -22,7 +22,7 @@ Where:
 
 - **Deterministic Governance:** Enforces business rules and regulations with predictable, auditable outcomes.
 - **Real-time Network Interception:** Captures and analyzes agent intents at the network perimeter.
-- **Cryptographic Decision Leasing:** Utilizes PASETO v4 for secure, time-bound authorization of actions.
+- **Cryptographic Decision Leasing:** Utilizes PASETO v4.local (shared-key AEAD) for secure, time-bound authorization of actions.
 - **Immutable Forensic Audit Trail:** Logs all decisions, policy evaluations, and human interventions for complete traceability.
 - **Two-Axis Decision Evaluation:** Implements a robust framework for action verdicts and evidence attestation.
 - **5-State Decision Model:** Employs a clear categorization of decisions (PERMIT, REMEDIATE, ESCALATE, BLOCK, INDETERMINATE).
@@ -36,9 +36,9 @@ Where:
 
 CDA 2.0 incorporates select normative frameworks and evaluation models proposed within the ITU-T Focus Group on Trust and Identity for Humans and Agentic AI (FG-TIDA):
 
-- **Two-Axis Separation (Action Verdict vs. Evaluation Evidence):** Anton Sokolov (@tyche-dev, AVS-0.2). Evaluates intent via Axis 1 (Action Verdict) and Axis 2 (Evidence Attestation).
-- **Checks-in-Path Recording & Silent Failure Catalog:** Steven Zhao (@zhaoxinghua09-cell). Formalizes execution path recording and unmapped regime failure modes.
-- **5-State Verdict Taxonomy:** Cyril Gorlla (@cgorlla). Implements the decision states (`PERMIT`, `REMEDIATE`, `REQUIRES_HUMAN_REVIEW`, `BLOCK`, `INDETERMINATE`).
+- **Two-Axis Separation (Action Verdict vs. Evaluation Evidence):** Anton Sokolov (@tyche-dev, AVS-0.2) and FG-TIDA Theme #6 Task 3. Evaluates intent via Axis 1 (Action Verdict) and Axis 2 (Evidence Attestation).
+- **Checks-in-Path Recording & Silent Failure Catalog:** Steven Zhao (@zhaoxinghua09-cell) and FG-TIDA Theme #4 Task 1. Formalizes execution path recording and unmapped regime failure modes under UC-4 / UC-21.
+- **5-State Verdict Taxonomy:** Cyril Gorlla (@cgorlla). Implements the decision states (`PERMIT`, `REMEDIATE`, `ESCALATE` / `REQUIRES_HUMAN_REVIEW`, `BLOCK`, `INDETERMINATE`).
 - **Atomic Check-to-Act (TOCTOU) Verification Boundary:** Iván Abril Palma (@dakleyer). Integrates context-freeze patterns for detecting state drift at the execution boundary.
 
 
@@ -241,6 +241,7 @@ cognitive-decision-architecture/
 │   ├── ITU_T_FG_TIDA_USE_CASE.md
 │   ├── owasp-mapping.md
 │   └── regulatory-mapping.md
+│   └── SPEC_DRAFT_PARIS_2026.md
 ├── Dockerfile
 ├── docker-compose.yml
 ├── experiment.json
@@ -248,7 +249,6 @@ cognitive-decision-architecture/
 ├── pyproject.toml
 ├── pytest.ini
 ├── requirements.txt
-├── SPEC_DRAFT_TWO_AXES.md
 └── synthetic_vectors.json
 ```
 
