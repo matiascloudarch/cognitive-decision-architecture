@@ -76,7 +76,7 @@ def authorize_intent(intent: AgentIntent, human_signature: Optional[str] = None)
     if regime not in MOCK_POLICIES:
         axis_1 = Axis1ActionVerdict(state="INDETERMINATE", fallback_action="BLOCK", remediation_details=None)
         axis_2 = Axis2EvaluationEvidence(
-            execution_status="UNMAPPED_REGIME_CONTEXT",
+            execution_status="INVALID_REGIME_CONTEXT",
             checks_executed=["CHK-REGIME-01"],
             failure_mode="INVALID_REGIME_CONTEXT"
         )
@@ -169,10 +169,13 @@ def authorize_intent(intent: AgentIntent, human_signature: Optional[str] = None)
                 details=f"Amount ${amount:.2f} exceeds auto-approval ${auto_limit:.2f}. Forcing auto-remediation."
             )
         )
+        adjusted_payload = dict(intent.params)
+        adjusted_payload["amount"] = auto_limit
+
         remediation = RemediationDetails(
             rule_id="POL-REM-001",
             original_payload=intent.params,
-            adjusted_payload={"amount": auto_limit},
+            adjusted_payload=adjusted_payload,
             justification=f"Amount capped from ${amount:.2f} to max auto-approval ${auto_limit:.2f}.",
             remediation_authority="POL-REM-001"
         )

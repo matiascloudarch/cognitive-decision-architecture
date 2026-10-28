@@ -22,7 +22,7 @@ def test_unmapped_regime_context() -> None:
     data = response.json()
     assert data["verdict"] == "INDETERMINATE"
     assert data["paseto_token"] is None
-    assert data["axis_2_evaluation_evidence"]["execution_status"] == "UNMAPPED_REGIME_CONTEXT"
+    assert data["axis_2_evaluation_evidence"]["execution_status"] == "INVALID_REGIME_CONTEXT"
     assert data["axis_2_evaluation_evidence"]["failure_mode"] == "INVALID_REGIME_CONTEXT"
 
 
